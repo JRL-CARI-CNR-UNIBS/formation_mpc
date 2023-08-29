@@ -1,0 +1,168 @@
+﻿#ifndef FORMATION_TASKS_HPP
+#define FORMATION_TASKS_HPP
+
+#include "task_math/task_math.h"
+#include "task_math/common_tasks.h"
+#include "rdyn_core/primitives.h"
+#include "Eigen/Core"
+#include "Eigen/Geometry"
+
+namespace taskQP {
+
+namespace math {
+
+class FormationTask : public MotionConstraint
+{
+protected:
+  bool m_is_clik_enabled {false};
+  double m_error_gain {1.0};
+  int m_task_size {9};
+  bool m_scaling_active {false};
+  bool m_initialized {false};
+  Eigen::Affine3d m_T_base_footprint_follower;
+  Eigen::Affine3d m_T_base_footprint_leader;
+  std::array<rdyn::Chain*, 2> m_chains {nullptr, nullptr};
+  std::array<bool, 2> m_is_omni {false, false};
+  std::array<int, 2> m_nax_chains {0, 0};
+  bool m_need_update {false};
+public:
+  FormationTask() : m_initialized(false) {}
+  FormationTask(virtualModel* p_mpc_model,
+                rdyn::Chain* follower, bool follower_is_omni,
+                rdyn::Chain* leader, bool leader_is_omni);
+  void reinit();
+  void enableClik(const bool& enable_clik);
+  void setErrorGain(const double& k);
+  double getErrorGain() { return m_error_gain; }
+
+  void computeActualMatrices(const Eigen::VectorXd& q);
+  Eigen::VectorXd computeTaskError(const Eigen::VectorXd& joint_position);
+
+  void update(const Eigen::VectorXd& q, const Eigen::VectorXd& dq);
+  void update(const Eigen::VectorXd& targetDx,
+              const Eigen::Affine3d& next_targetX,
+              const Eigen::VectorXd& q, const Eigen::VectorXd& dq);
+};
+
+
+/*
+ *
+ * Constructor
+ *
+ * @param p_mpc_model virtual model of the MPC
+ * @param follower kinematic chain of the manipulator of the follower
+ * @param follower_is_omni true if omniwheels or mechanum, false otherwise
+ * @param leader kinematic chain of the manipulator of the leader
+ * @param leader_is_omni true if omniwheels or mechanum, false otherwise
+ *
+ */
+inline
+FormationTask::FormationTask(virtualModel* p_mpc_model,
+                             rdyn::Chain* follower, bool follower_is_omni,
+                             rdyn::Chain* leader, bool leader_is_omni)
+{
+  MotionConstraint::initMPC(p_mpc_model);
+  m_nax = 1; // NOTE a cosa serve ??
+  m_chains.at(0) = follower;
+  m_chains.at(1) = leader;
+  m_is_omni.at(0) = follower_is_omni;
+  m_is_omni.at(1) = leader_is_omni;
+  m_nax_chains.at(0) = follower->getActiveJointsNumber();
+  m_nax_chains.at(1) = leader->getActiveJointsNumber();
+  CNR_DEBUG(logger, "New Formation Task created");
+}
+inline
+void FormationTask::reinit()
+{
+  m_A_vel.resize(m_task_size*m_np,m_nax*m_np);
+  m_A_vel.setZero();
+  m_is_A_vel_initialized=true;
+  m_b_0.resize(m_task_size*m_np);
+  m_b_0.setZero();
+  if (m_scaling_active==true)
+  {
+    m_do_scaling.resize(m_task_size*m_np,m_np);
+    m_do_scaling.setZero();
+    for (unsigned int ic=0;ic<m_np;ic++)
+      m_do_scaling.block(ic*m_task_size,ic,m_task_size,1).setOnes();
+  }
+  unsigned int scaling_axis;
+  if (m_scaling_active==true)
+    scaling_axis=1;
+  else
+    scaling_axis=0;
+
+  m_A.resize( (m_task_size+scaling_axis)*m_np, (m_nax+scaling_axis)*m_np );
+  m_A.setZero();
+  m_A.bottomRightCorner(m_np,m_np).setIdentity();
+  m_b.resize( (m_task_size+scaling_axis)*m_np );
+  m_b.setZero();
+  m_W.resize( (m_task_size+scaling_axis)*m_np, (m_task_size+scaling_axis)*m_np);
+  m_W.setIdentity();
+  setWeightScaling(m_weight_scaling);
+  m_need_update=false;
+}
+typedef std::shared_ptr<FormationTask> FormationTaskPtr;
+
+/*
+ * Compute A and b matricies of the task
+ *
+ * || J0*qp0 - J1*qp1 || = || [J0 J1][qp0; qp1] - ZERO (- k*err) ||
+ *
+ * @param targetDx is the velocity target to reach. Should be zero for the followers
+ * @param q position of each joint, at each prediction instant, to obtain the jacobian.
+ *        Follows the structure [q_leader_0; q_follower_0; q_leader_1; q_follower_1; ...]
+ */
+
+inline
+void FormationTask::computeActualMatrices(const Eigen::VectorXd &q)
+{
+  m_A_vel.setZero();
+  for (unsigned int i_np=0; i_np<m_np; i_np++)
+  {
+    auto jac_leader = m_chains.at(0)->getJacobian(q.segment(i_np*m_nax,m_nax_chains.at(0)));
+    auto jac_follow = m_chains.at(1)->getJacobian(q.segment(i_np*m_nax+m_nax_chains.at(0),m_nax_chains.at(1)));
+    Eigen::MatrixXd full_jacobian;
+    full_jacobian << jac_leader,
+                     jac_follow;
+    m_A_vel.block(i_np*m_task_size,i_np*m_nax,m_task_size,m_nax_chains.at(0)+m_nax_chains.at(1))=full_jacobian;
+    m_b_0.segment(i_np*m_task_size,m_task_size)=-m_error_gain*computeTaskError(
+                                                    q.segment(i_np*m_nax,m_nax_chains.at(0)+m_nax_chains.at(1))
+                                                  ).segment(i_np*6,6);
+  }
+}
+
+inline
+void FormationTask::setErrorGain(const double& k)
+{
+  m_error_gain = k;
+}
+
+inline
+Eigen::VectorXd FormationTask::computeTaskError(const Eigen::VectorXd& joint_position)
+{
+  Eigen::VectorXd task_error(6);
+  rdyn::getFrameDistance(m_chains.at(0)->getTransformation(joint_position.segment(0,m_nax_chains.at(0))),
+                         m_chains.at(0)->getTransformation(joint_position.segment(m_nax_chains.at(0),m_nax_chains.at(1))),
+                         task_error);
+  return task_error;
+}
+
+/*
+ *
+ * @param q joint state position vector.
+ * @param dq joint state velocity vector.
+ *
+ */
+inline
+void FormationTask::update(const Eigen::VectorXd& q, const Eigen::VectorXd& dq)
+{
+  computeActualMatrices(q);
+  computeTaskMatrices(q.head(m_nax),dq.head(m_nax),m_A,m_b);
+}
+
+} // math
+
+} // taskQP
+
+#endif // FORMATION_TASKS_HPP

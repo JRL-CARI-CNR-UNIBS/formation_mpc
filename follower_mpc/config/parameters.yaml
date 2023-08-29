@@ -1,0 +1,53 @@
+mm_mpc: # defined per generate_parameter_library
+  follower: 
+    control_horizon: {
+      type: int,
+      default_value: 1,
+      validation: {
+        gt<>: 0
+      }
+    }
+    prediction_horizon: {
+      type: int,
+      default_value: 5,
+      validation: {
+        gt<>: 0
+      }
+    }
+    clik_gain: {
+      type: double,
+      default_value: 1.0,
+      validation: {
+        gt_eq<>: 0
+      }
+    }
+    leader_ns: {
+      type: string,
+      default_value: "sweepee_1",
+      description: "Name of the formation leader"
+    }
+    is_omni: {
+      type: bool,
+      default_value: true,
+      description: "is the robot holonomic?"
+    }
+    base_footprint: {
+      type: string,
+      default_value: "/base_footprint",
+      description: "refered to the mobile base"
+    } 
+    base_link: {
+      type: string,
+      default_value: "/base_link",
+      description: "manipulator base"
+    }
+    tool_frame: {
+      type: string,
+      default_value: "/tool0",
+      description: "tool frame"
+    }
+    map_frame: {
+      type: string,
+      default_value: "map",
+      description: "map/world reference frame"
+    }
