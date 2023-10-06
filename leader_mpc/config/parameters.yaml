@@ -131,6 +131,11 @@ formation_mpc: # defined per generate_parameter_library
       default_value: "",
       description: "Topic though which the leader solution is shared with the followers"
     }
+    plan_topic: { # Not implemented (and not useful)
+      type: string,
+      default_value: "/plan",
+      description: "Topic with the global plan for the formation",
+    }
     followers:
       names: {
         type: string_array,

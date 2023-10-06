@@ -49,6 +49,7 @@
 #include <std_msgs/msg/string.hpp>
 #include <geometry_msgs/msg/twist.hpp>
 #include <trajectory_msgs/msg/joint_trajectory.hpp>
+#include <nav_msgs/msg/path.hpp>
 #include "formation_msgs/msg/trj_optim_results.hpp"
 
 #include "subscription_notifier/subscription_notifier.h"
@@ -63,7 +64,7 @@ namespace formation_mpc
 {
   using CmdType = geometry_msgs::msg::Twist;
   constexpr double k_task_level_multiplier = 1e-3;
-class LeaderMPC : public controller_interface::ControllerInterface
+class LeaderMPC : public controller_interface::ControllerInterface // FIXME: ros2_control -> nav2_controller
 {
 public:
   LeaderMPC();
@@ -93,6 +94,10 @@ protected:
 
   std::mutex m_mtx;
 
+//  std::string m_plan_topic {"/plan"};
+//  rclcpp::Subscription<nav_msgs::msg::Path>::SharedPtr m_get_plan__sub_ptr;
+//  nav_msgs::msg::Path m_original_plan;
+
   unsigned int m_nax;
   unsigned int m_nax_arm;
   unsigned int m_nax_base;
@@ -103,7 +108,7 @@ protected:
   Eigen::MatrixXd m_dq;
   Eigen::MatrixXd m_ddq;
 
-  Eigen::VectorXd m_target_dx;
+  Eigen::Vector6d m_target_dx;
   Eigen::Affine3d m_target_x;
 
   realtime_tools::RealtimeBuffer<std::shared_ptr<CmdType>> m_rt_command_ptr;

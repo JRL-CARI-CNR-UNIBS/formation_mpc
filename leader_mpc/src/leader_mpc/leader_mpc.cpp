@@ -268,16 +268,19 @@ controller_interface::CallbackReturn LeaderMPC::on_configure(const rclcpp_lifecy
                  m_flw_trj_sub.begin(),
                  [this](const std::string& s) -> rclcpp::Subscription<trajectory_msgs::msg::JointTrajectory>::SharedPtr {
     std::string topic {s+"/"+m_params.leader.followers.trj_topic};
-    return this->get_node()->create_subscription<trajectory_msgs::msg::JointTrajectory>(s+"/"+m_params.leader.followers.trj_topic, 10, std::bind(&LeaderMPC::updateFollowerTrjCallback,this, std::placeholders::_1, s));
+    return this->get_node()->create_subscription<trajectory_msgs::msg::JointTrajectory>(s+"/"+m_params.leader.followers.trj_topic, 10, [this, &s](const trajectory_msgs::msg::JointTrajectory& msg)->void{this->updateFollowerTrjCallback(msg, s);});
   });
-  m_flw_trj_pub.resize(m_params.leader.followers.names.size());
-  std::transform(m_params.leader.followers.names.begin(),
-                 m_params.leader.followers.names.end(),
-                 m_flw_trj_pub.begin(),
-                 [this](const std::string& s) -> rclcpp::Publisher<formation_msgs::msg::TrjOptimResults>::SharedPtr {
-    std::string
-  });
-  }
+//  m_flw_trj_pub.resize(m_params.leader.followers.names.size());
+//  std::transform(m_params.leader.followers.names.begin(),
+//                 m_params.leader.followers.names.end(),
+//                 m_flw_trj_pub.begin(),
+//                 [this](const std::string& s) -> rclcpp::Publisher<formation_msgs::msg::TrjOptimResults>::SharedPtr {
+//    std::string
+//  });
+
+//  m_get_plan__sub_ptr = this->get_node()->create_subscription<nav_msgs::msg::Path>(m_params.leader.plan_topic, 10, [this](const nav_msgs::msg::Path& msg){
+//    m_original_plan = msg;
+//  });
 
   m_leader_trj_pub = this->get_node()->create_publisher<formation_msgs::msg::TrjOptimResults>(m_params.leader.trj_leader_topic, 10);
 
@@ -363,7 +366,6 @@ controller_interface::CallbackReturn LeaderMPC::on_activate(const rclcpp_lifecyc
     m_q.col(0)(idx) = state_interfaces_.at(idx).get_value();
   }
 
-  //TODO: prendi posizione della base mobile da messaggio (?)
   Eigen::Isometry3d pose_base_in_map;
   if(!m_tf_buffer_ptr->canTransform(m_base_footprint,
                                m_map_frame,
@@ -427,8 +429,8 @@ controller_interface::return_type LeaderMPC::update( const rclcpp::Time & time,
   trj_lock.lock(); // for m_followers_q|dq|ddq access
   if(std::find_if(m_followers_last_message_stamp.begin(),
                   m_followers_last_message_stamp.end(),
-                  [this](const rclcpp::Time& stamp){
-    return (this->get_node()->get_clock()->now() - stamp) > k_max_delay;
+                  [this](const std::pair<std::string, rclcpp::Time>& pair){
+    return (this->get_node()->get_clock()->now() - pair.second) > k_max_delay;
   }) != m_followers_last_message_stamp.end())
   {
     RCLCPP_FATAL(get_node()->get_logger(), "Follower position not up to date -> Failure");
@@ -441,9 +443,11 @@ controller_interface::return_type LeaderMPC::update( const rclcpp::Time & time,
   trj_lock.unlock();
 
   // get_target_x|dx
-  {
-    // TODO: completa il set target
-  }
+  // TODO: implementa interpolatore: nav_msgs::msg::Path -> comandi velocità
+  geometry_msgs::msg::Twist::SharedPtr* target_dx_msg = m_rt_command_ptr.readFromRT();
+//  Eigen::Vector6d target_dx_eig;
+  tf2::fromMsg(target_dx_msg->get(), m_target_dx);
+  m_target_x
 
 //  m_cartesian_leader_task.setTargetScaling();
   m_cartesian_leader_task.setTargetTrajectory(m_target_dx, m_target_x);
@@ -480,6 +484,17 @@ controller_interface::return_type LeaderMPC::update( const rclcpp::Time & time,
     m_q.col(idx) = ((idx==0) ? m_q_now : m_q.col(idx-1)) + m_dq.col(idx)*m_dt; // FIXME: m_dt? oppure un dt legato all'invio dei messaggi?
   }
 
+  if (m_cmd_vel_pub_rt->trylock())
+  {
+    auto & msg = m_cmd_vel_pub_rt->msg_;
+    m_cmd_vel_pub_rt->msg_ = geometry_msgs::msg::Twist();
+    msg.linear.x  = m_solutions(0);
+    msg.linear.y  = m_solutions(1);
+    msg.angular.z = m_solutions(2);
+    m_cmd_vel_pub_rt->unlockAndPublish();
+  }
+
+  // Parte di comunicazione con il follower
   formation_msgs::msg::TrjOptimResults sol;
   sol.trj.header.frame_id = m_map_frame;
   sol.trj.header.stamp = start_ros;
@@ -491,19 +506,6 @@ controller_interface::return_type LeaderMPC::update( const rclcpp::Time & time,
   }
   sol.scaling = scaling;
   m_leader_trj_pub->publish(sol);
-
-  if (m_cmd_vel_pub_rt->trylock())
-  {
-    auto & msg = m_cmd_vel_pub_rt->msg_;
-    m_cmd_vel_pub_rt->msg_ = geometry_msgs::msg::Twist();
-    msg.linear.x  = m_solutions(0);
-    msg.linear.y  = m_solutions(1);
-    msg.angular.z = m_solutions(2);
-    m_cmd_vel_pub_rt->unlockAndPublish();
-  }
-
-  // TODO: tutta la parte di comunicazione con il follower
-
 
   auto end = std::chrono::high_resolution_clock::now();
   auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);

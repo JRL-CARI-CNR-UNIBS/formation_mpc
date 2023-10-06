@@ -41,6 +41,7 @@ leeader_mpc:
       fake_base_urdf: ""
       hierarchy: [1,2,3]
       trj_leader_topic: "trj_share"
+      plan_topic: "/plan"
       followers:
         names:
           - "sweepee2"
