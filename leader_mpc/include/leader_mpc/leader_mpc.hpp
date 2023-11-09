@@ -23,11 +23,13 @@
 //#include <rclcpp_lifecycle/lifecycle_node.hpp>
 //#include <rclcpp_lifecycle/node_interfaces/lifecycle_node_interface.hpp>
 
-#include "controller_interface/controller_interface.hpp"
-#include "controller_interface/helpers.hpp"
+//#include "controller_interface/controller_interface.hpp"
+//#include "controller_interface/helpers.hpp"
 
-#include "realtime_tools/realtime_buffer.h"
-#include "realtime_tools/realtime_publisher.h"
+//#include "realtime_tools/realtime_buffer.h"
+//#include "realtime_tools/realtime_publisher.h"
+
+#include "nav2_core/controller.hpp"
 
 #include <hardware_interface/types/hardware_interface_type_values.hpp>
 
@@ -48,8 +50,10 @@
 // msg, srv, action
 #include <std_msgs/msg/string.hpp>
 #include <geometry_msgs/msg/twist.hpp>
-#include <trajectory_msgs/msg/joint_trajectory.hpp>
+#include <trajectory_msgs/msg/multi_dof_joint_trajectory.hpp>
+#include <trajectory_msgs/msg/multi_dof_joint_trajectory_point.hpp>
 #include <nav_msgs/msg/path.hpp>
+#include <sensor_msgs/msg/joint_state.hpp>
 #include "formation_msgs/msg/trj_optim_results.hpp"
 
 #include "subscription_notifier/subscription_notifier.h"
@@ -62,35 +66,43 @@
 
 namespace formation_mpc
 {
-  using CmdType = geometry_msgs::msg::Twist;
-  constexpr double k_task_level_multiplier = 1e-3;
-class LeaderMPC : public controller_interface::ControllerInterface // FIXME: ros2_control -> nav2_controller
+constexpr double k_task_level_multiplier = 1e-3;
+class LeaderMPC : public nav2_core::Controller // FIXME: ros2_controller or nav2_controller or moveit_local_planner
 {
 public:
   LeaderMPC();
+  geometry_msgs::msg::TwistStamped computeVelocityCommands(
+      const geometry_msgs::msg::PoseStamped & robot_pose,
+      const geometry_msgs::msg::Twist & robot_speed,
+      nav2_core::GoalChecker * goal_checker) override;
 
-  controller_interface::InterfaceConfiguration command_interface_configuration() const override;
-  controller_interface::InterfaceConfiguration state_interface_configuration() const override;
-  controller_interface::return_type update( const rclcpp::Time & time,
-                                            const rclcpp::Duration & period) override;
-  controller_interface::CallbackReturn on_init() override;
-  controller_interface::CallbackReturn on_configure (
-    const rclcpp_lifecycle::State & previous_state) override;
-  controller_interface::CallbackReturn on_activate  (
-    const rclcpp_lifecycle::State & previous_state) override;
-  controller_interface::CallbackReturn on_deactivate(
-    const rclcpp_lifecycle::State & previous_state) override;
-  controller_interface::CallbackReturn on_cleanup   (
-    const rclcpp_lifecycle::State & previous_state) override;
-  controller_interface::CallbackReturn on_error     (
-    const rclcpp_lifecycle::State & previous_state) override;
-  controller_interface::CallbackReturn on_shutdown  (
-    const rclcpp_lifecycle::State & previous_state) override;
+  void setPlan(const nav_msgs::msg::Path & path) override;
+
+  void setSpeedLimit(const double & speed_limit, const bool & percentage) override;
+
+  bool init(const rclcpp_lifecycle::LifecycleNode::WeakPtr&);
+  void configure (const rclcpp_lifecycle::LifecycleNode::WeakPtr & parent,
+                  std::string name, const std::shared_ptr<tf2_ros::Buffer> tf,
+                  const std::shared_ptr<nav2_costmap_2d::Costmap2DROS> costmap_ros) override;
+  void activate  () override;
+  void deactivate() override;
+  void cleanup   () override;
+  void error     ();
+  void shutdown  ();
+  void reset     ();
+
 protected:
 
+  rclcpp::Time m_t {0};
+  bool m_is_new_plan {false};
+  nav_msgs::msg::Path m_plan_path;
+  trajectory_msgs::msg::MultiDOFJointTrajectory m_plan;
+  std::vector<geometry_msgs::msg::PoseStamped> m_plan_timed;
 
   const rclcpp::Duration k_max_delay = rclcpp::Duration::from_nanoseconds(1e8); // 100ms
   double k_e_f {0.1};
+
+  rclcpp_lifecycle::LifecycleNode::WeakPtr m_node_weak;
 
   std::mutex m_mtx;
 
@@ -111,14 +123,14 @@ protected:
   Eigen::Vector6d m_target_dx;
   Eigen::Affine3d m_target_x;
 
-  realtime_tools::RealtimeBuffer<std::shared_ptr<CmdType>> m_rt_command_ptr;
-  rclcpp::Subscription<CmdType>::SharedPtr m_joints_command_subscriber;
+  // Publishers
+  rclcpp::Publisher<formation_msgs::msg::TrjOptimResults>::SharedPtr m_leader_trj__pub;
+  rclcpp::Publisher<geometry_msgs::msg::TwistStamped>::SharedPtr m_cmd_vel__pub;
+  rclcpp::Publisher<trajectory_msgs::msg::JointTrajectory>::SharedPtr m_joint_trajectory__pub;
 
-  template <typename T>
-  using InterfaceReferences = std::vector<std::vector<std::reference_wrapper<T>>>;
-
-  InterfaceReferences<hardware_interface::LoanedCommandInterface> m_joint_command_interface;
-  InterfaceReferences<hardware_interface::LoanedStateInterface> m_joint_state_interface;
+  // Subscribers
+  rclcpp::Subscription<sensor_msgs::msg::JointState>::SharedPtr m_joint_state__sub;
+  //  rclcpp::Subscription<geometry_msgs::msg::Twist>::SharedPtr m_joints_command__sub; // ??
 
   std::vector<std::string> m_joint_names;
 
@@ -131,17 +143,13 @@ protected:
   std::string m_namespace       {"leader"};
   std::string this_frame(const std::string& s) { return m_namespace + "/" + s;}
 
-  const std::vector<std::string> m_allowed_interface_types = {
-    hardware_interface::HW_IF_POSITION,
-    hardware_interface::HW_IF_VELOCITY,
-    hardware_interface::HW_IF_ACCELERATION};
+//  const std::vector<std::string> m_allowed_interface_types = {
+//    hardware_interface::HW_IF_POSITION,
+//    hardware_interface::HW_IF_VELOCITY,
+//    hardware_interface::HW_IF_ACCELERATION};
 
-  std::shared_ptr<rclcpp::Publisher<geometry_msgs::msg::Twist>> m_cmd_vel_pub_wrapped;
-  std::unique_ptr<realtime_tools::RealtimePublisher<geometry_msgs::msg::Twist>> m_cmd_vel_pub_rt; // cmd_to_base
-
-  rclcpp::Publisher<formation_msgs::msg::TrjOptimResults>::SharedPtr m_leader_trj_pub;
-  std::vector<rclcpp::Subscription<trajectory_msgs::msg::JointTrajectory>::SharedPtr> m_flw_trj_sub;
-  std::vector<rclcpp::Publisher<formation_msgs::msg::TrjOptimResults>::SharedPtr> m_flw_trj_pub;
+//  std::vector<rclcpp::Subscription<trajectory_msgs::msg::JointTrajectory>::SharedPtr> m_flw_trj_sub;
+//  std::vector<rclcpp::Publisher<formation_msgs::msg::TrjOptimResults>::SharedPtr> m_flw_trj_pub;
 
   std::unique_ptr<tf2_ros::TransformListener> m_tf_listener_ptr;
   std::unique_ptr<tf2_ros::Buffer> m_tf_buffer_ptr;
@@ -166,6 +174,9 @@ protected:
   rdyn::ChainPtr m_rdyn_full_chain;
 //  std::unordered_map<std::string, rdyn::ChainPtr> m_flw_rdyn_chain_map;
 
+  Eigen::Vector3d       m_cartesian_velocity_limit {0.0, 0.0, 0.0};
+  Eigen::Vector3d       m_cartesian_rotation_velocity_limit {0.0,0.0,0.0};
+
   // HQP solution
   Eigen::VectorXd       m_solutions;
 
@@ -179,8 +190,8 @@ protected:
   taskQP::math::virtualModel                      m_model;
 
   //** Tasks **//
-  taskQP::math::MinimizeAcceleration          m_minimize_acc;
-  taskQP::math::MinimizeVelocity              m_minimize_vel;
+//  taskQP::math::MinimizeAcceleration          m_minimize_acc;
+//  taskQP::math::MinimizeVelocity              m_minimize_vel;
   taskQP::math::CartesianTask                 m_cartesian_leader_task;
 
   //** Limits **//
@@ -197,11 +208,12 @@ protected:
   // Parameters generation
   std::shared_ptr<ParamListener> m_param_listener;
   Params m_params;
-  void declare_parameters();
-  controller_interface::CallbackReturn read_parameters();
+  void declare_parameters (const rclcpp_lifecycle::LifecycleNode::WeakPtr&);
+  bool read_parameters    (const rclcpp_lifecycle::LifecycleNode::SharedPtr&);
 private:
   void updateFollowerTrjCallback(const trajectory_msgs::msg::JointTrajectory& msg, const std::string& name);
   void acquireFormation();
+  void interpolate(geometry_msgs::msg::Pose& out);
 //  bool loadFollowerMobileChain(const std::string& t_name,
 //                                    const std::string& t_base_frame,
 //                                    const std::string& t_tool_frame,

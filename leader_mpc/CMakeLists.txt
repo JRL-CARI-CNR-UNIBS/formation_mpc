@@ -8,9 +8,8 @@ endif()
 
 # ROS-related packages
 find_package(ament_cmake                REQUIRED)
-## ros2_control
-find_package(controller_interface       REQUIRED)
-find_package(realtime_tools             REQUIRED)
+## nav2
+find_package(nav2_core                  REQUIRED)
 ## rclcpp
 find_package(rclcpp                     REQUIRED)
 find_package(rclcpp_lifecycle           REQUIRED)
@@ -21,6 +20,9 @@ find_package(geometry_msgs              REQUIRED)
 find_package(trajectory_msgs            REQUIRED)
 find_package(formation_msgs             REQUIRED)
 find_package(nav_msgs                   REQUIRED)
+find_package(nav2_msgs                  REQUIRED)
+find_package(sensor_msgs                REQUIRED)
+find_package(map_msgs                   REQUIRED)
 ## tf2
 find_package(tf2_ros                    REQUIRED)
 find_package(tf2_eigen                  REQUIRED)
@@ -40,15 +42,18 @@ generate_parameter_library(leader_mpc_parameters # cmake target name for the par
 
 set(THIS_PACKAGE_LIBRARIES_DEPENDENCIES
   ament_cmake
+  nav2_core
   rclcpp
   rclcpp_lifecycle
   pluginlib
   geometry_msgs
   trajectory_msgs
   nav_msgs
+  sensor_msgs
+  map_msgs
+  nav2_msgs
   formation_msgs
   task_math
-  realtime_tools
   tf2_ros
   tf2_eigen
   subscription_notifier
@@ -72,7 +77,7 @@ ament_target_dependencies(${PROJECT_NAME} PUBLIC
 target_include_directories(${PROJECT_NAME} PUBLIC
   $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include>)
-pluginlib_export_plugin_description_file(controller_interface plugin.xml) # Plugin
+pluginlib_export_plugin_description_file(nav2_core controller_plugin.xml) # Plugin
 
 install(TARGETS ${PROJECT_NAME} leader_mpc_parameters
   EXPORT ${PROJECT_NAME}Targets
