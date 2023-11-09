@@ -1,7 +1,0 @@
-<library path="mm_mpc">
-  <class name="leader_mpc/LeaderMPC" type="leader_mpc::LeaderMPC" base_class_type="controller_interface::ControllerInterface">
-  <description>
-    
-  </description>
-  </class>
-</library>
