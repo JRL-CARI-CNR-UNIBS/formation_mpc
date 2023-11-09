@@ -1,0 +1,7 @@
+<library path="leader_mpc">
+  <class type="formation_mpc::LeaderMPC" base_class_type="nav2_core::Controller">
+  <description>
+    Leader MPC controller
+  </description>
+  </class>
+</library>

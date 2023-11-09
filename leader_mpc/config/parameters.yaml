@@ -1,172 +1,151 @@
 formation_mpc: # defined per generate_parameter_library
-  leader:
-    control_horizon: {
-      type: int,
-      default_value: 1,
-      validation: {
-        gt<>: 0
-      }
+  control_horizon: {
+    type: int,
+    default_value: 1,
+    validation: {
+      gt<>: 0
     }
-    prediction_horizon: {
-      type: int,
-      default_value: 5,
-      validation: {
-        gt<>: 0
-      }
+  }
+  prediction_horizon: {
+    type: int,
+    default_value: 5,
+    validation: {
+      gt<>: 0
     }
-    dt: {
-      type: double,
-      default_value: 0.1,
-      description: "Controller sampling time in seconds",
-      validation: {
-        gt<>: 0.0
-      }
+  }
+  dt: {
+    type: double,
+    default_value: 0.1,
+    description: "Controller sampling time in seconds",
+    validation: {
+      gt<>: 0.0
     }
-    formation_dt: { # Not Implemented
-      type: double,
-      default_value: 0.1,
-      description: "[NOT IMPLEMENTED] dt for formation mpc sync",
-      validation: {
-        gt<>: 0.0
-      }
+  }
+  formation_dt: { # Not Implemented
+    type: double,
+    default_value: 0.1,
+    description: "[NOT IMPLEMENTED] dt for formation mpc sync",
+    validation: {
+      gt<>: 0.0
     }
-    clik_gain: {
+  }
+  clik_gain: {
+    type: double,
+    default_value: 1.0,
+    validation: {
+      gt_eq<>: 0.0
+    }
+  }
+  leader_ns: {
+    type: string,
+    default_value: "sweepee_1",
+    description: "Name of the formation leader"
+  }
+  is_omni: { # Not implemented
+    type: bool,
+    default_value: true,
+    description: "[NOT IMPLEMENTED] is the robot omnidirectional?"
+  }
+  base_footprint: {
+    type: string,
+    default_value: "/base_footprint",
+    description: "refered to the mobile base"
+  }
+  base_link: {
+    type: string,
+    default_value: "/base_link",
+    description: "manipulator base"
+  }
+  tool_frame: {
+    type: string,
+    default_value: "/tool0",
+    description: "tool frame"
+  }
+  map_frame: {
+    type: string,
+    default_value: "map",
+    description: "map/world reference frame"
+  }
+  joints: {
+    type: string_array,
+    default_value: [],
+    description: "Name of the joints to control"
+  }
+  command_joints: {
+    type: string_array,
+    default_value: [],
+    description: "Name of the joints to control"
+  }
+  control_interface: {
+    type: string_array,
+    default_value: [],
+    description: "Names of the control_interface to command",
+  }
+  state_interface: {
+    type: string_array,
+    default_value: [],
+    description: "Names of the state_interface",
+  }
+  robot_description_topic: {
+    type: string,
+    default_value: "robot_description",
+    description: "Name of the robot description topic",
+  }
+  cmd_vel_topic: {
+    type: string,
+    default_value: "cmd_vel",
+    description: "Name of the cmd_vel topic on which the base will read it cmd",
+  }
+  cmd_trj_topic: {
+    type: string,
+    default_value: "joint_trajectory_controller/joint_trajectory",
+    description: "Topic of the joint_trajectory_controller",
+  }
+  scaling:
+    active: {
+      type: bool,
+      default_value: false,
+      description: "activate or deactivate scaling for cartesian task: ||J*qp-s*V||^2 + ||1-s||^2"
+    }
+    limit: {
       type: double,
       default_value: 1.0,
+      description: "Scaling maximum value",
       validation: {
-        gt_eq<>: 0.0
+        lt_eq<>: 2.0
       }
     }
-    leader_ns: {
-      type: string,
-      default_value: "sweepee_1",
-      description: "Name of the formation leader"
+  fake_base_urdf: { # Not implemented
+    type: string,
+    default_value: "fake_base.urdf",
+    description: "[NOT IMPLEMENTED] URDF file representing the 3 dof base movements: X,Y,rot(Z)"
+  }
+  hierarchy: {
+    type: int_array,
+    default_value: [1,2,3],
+    description: "hierarchy of the tasks (1 is higher). In order: minimize_acceleration, minimize_velocity, cartesian_trajectory",
+    validation: {
+      unique<>: [],
+      fixed_size<>: 3,
+      element_bounds<>: [1,3],
     }
-    is_omni: { # Not implemented
-      type: bool,
-      default_value: true,
-      description: "[NOT IMPLEMENTED] is the robot omnidirectional?"
+  }
+  trj_leader_topic: {
+    type: string,
+    default_value: "",
+    description: "Topic though which the leader solution is shared with the followers"
+  }
+  plan_topic: { # Not implemented (and not useful)
+    type: string,
+    default_value: "/plan",
+    description: "Topic with the global plan for the formation",
+  }
+  base_max_vel: {
+    type: double_array,
+    default_value: [0.0,0.0,0.0,0.0,0.0,0.0],
+    description: "Maximum velocity of the payload",
+    validation: {
+      fixed_size<>: [6],
+      lower_element_bounds<>: 0.0
     }
-    base_footprint: {
-      type: string,
-      default_value: "/base_footprint",
-      description: "refered to the mobile base"
-    } 
-    base_link: {
-      type: string,
-      default_value: "/base_link",
-      description: "manipulator base"
-    }
-    tool_frame: {
-      type: string,
-      default_value: "/tool0",
-      description: "tool frame"
-    }
-    map_frame: {
-      type: string,
-      default_value: "map",
-      description: "map/world reference frame"
-    }
-    joints: {
-      type: string_array,
-      default_value: [],
-      description: "Name of the joints to control"
-    }
-    command_joints: {
-      type: string_array,
-      default_value: [],
-      description: "Name of the joints to control"
-    }
-    control_interface: {
-      type: string_array,
-      default_value: [],
-      description: "Names of the control_interface to command",
-    }
-    state_interface: {
-      type: string_array,
-      default_value: [],
-      description: "Names of the state_interface",
-    }
-    robot_description_topic: {
-      type: string,
-      default_value: "robot_description",
-      description: "Name of the robot description topic",
-    }
-    cmd_vel_topic: {
-      type: string,
-      default_value: "cmd_vel",
-      description: "Name of the cmd_vel topic on which the base will read it cmd",
-    }
-    scaling:
-      active: {
-        type: bool,
-        default_value: false,
-        description: "activate or deactivate scaling for cartesian task: ||J*qp-s*V||^2 + ||1-s||^2"
-      }
-      limit: {
-        type: double,
-        default_value: 1.0,
-        description: "Scaling maximum value",
-        validation: {
-          lt_eq<>: 2.0
-        }
-      }
-    fake_base_urdf: { # Not implemented
-      type: string,
-      default_value: "fake_base.urdf",
-      description: "[NOT IMPLEMENTED] URDF file representing the 3 dof base movements: X,Y,rot(Z)"
-    }
-    hierarchy: {
-      type: int_array,
-      default_value: [1,2,3],
-      description: "hierarchy of the tasks (1 is higher). In order: minimize_acceleration, minimize_velocity, cartesian_trajectory",
-      validation: {
-        unique<>: [],
-        fixed_size<>: 3,
-        element_bounds<>: [1,3],
-      }
-    }
-    trj_leader_topic: {
-      type: string,
-      default_value: "",
-      description: "Topic though which the leader solution is shared with the followers"
-    }
-    plan_topic: { # Not implemented (and not useful)
-      type: string,
-      default_value: "/plan",
-      description: "Topic with the global plan for the formation",
-    }
-    followers:
-      names: {
-        type: string_array,
-        default_value: [],
-        description: "Name of the followers in the formation",
-        validation: {
-          unique<>: []
-        }
-      }
-      nax: {
-        type: int_array,
-        default_value: [],
-        description: "Number of axis of each follower",
-        validation: {
-          lower_element_bounds<>: 1
-        }
-      }
-      trj_topic: {
-        type: string,
-        default_value: "follower_trajectory",
-        description: "topic on which the follower will publish its trajectory. The name will be prefixed, for each robot, with its name to obtain: /follower_name/trj_topic",
-        validation: {
-          not_empty<>: []
-        }
-      }
-      trj_tollerance: {
-        type: double,
-        default_value: 0.1,
-        description: "Tollerance on the trajectory estimation for the followers",
-        validation: {
-          gt<>: 0.0
-        }
-      }
-
+  }

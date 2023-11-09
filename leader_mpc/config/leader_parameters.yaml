@@ -42,12 +42,3 @@ leeader_mpc:
       hierarchy: [1,2,3]
       trj_leader_topic: "trj_share"
       plan_topic: "/plan"
-      followers:
-        names:
-          - "sweepee2"
-        nax:
-          - 9
-        trj_topic:
-          - "trj_fwl_share"
-        trj_tollerance:
-          - 0.1
