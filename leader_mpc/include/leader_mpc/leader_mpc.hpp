@@ -76,7 +76,7 @@ public:
 
   void set_plan(const trajectory_msgs::msg::MultiDOFJointTrajectory& trj);
 
-  void setSpeedLimit(const double & speed_limit, const bool & percentage);
+  void set_speed_limit(const double & speed_limit, const bool & percentage);
 
   bool init();
   CallbackReturn on_configure (const rclcpp_lifecycle::State& /*state*/) override;
