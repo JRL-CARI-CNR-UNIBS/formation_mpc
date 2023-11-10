@@ -72,9 +72,9 @@ class LeaderMPC : public rclcpp_lifecycle::LifecycleNode // FIXME: ros2_controll
 {
 public: 
   LeaderMPC(const std::string& name, const rclcpp::NodeOptions& options);
-  geometry_msgs::msg::TwistStamped computeVelocityCommands();
+  geometry_msgs::msg::TwistStamped compute_velocity_command();
 
-  void setPlan(const trajectory_msgs::msg::MultiDOFJointTrajectory& trj);
+  void set_plan(const trajectory_msgs::msg::MultiDOFJointTrajectory& trj);
 
   void setSpeedLimit(const double & speed_limit, const bool & percentage);
 

@@ -240,7 +240,7 @@ CallbackReturn LeaderMPC::on_deactivate(const rclcpp_lifecycle::State& /*state*/
   return CallbackReturn::SUCCESS;
 }
 
-void LeaderMPC::setPlan(const trajectory_msgs::msg::MultiDOFJointTrajectory& trj)
+void LeaderMPC::set_plan(const trajectory_msgs::msg::MultiDOFJointTrajectory& trj)
 {
   size_t size = trj.points.size();
   m_plan.clear();
@@ -256,7 +256,7 @@ void LeaderMPC::setPlan(const trajectory_msgs::msg::MultiDOFJointTrajectory& trj
   m_plan.started = false;
 }
 
-geometry_msgs::msg::TwistStamped LeaderMPC::computeVelocityCommands()
+geometry_msgs::msg::TwistStamped LeaderMPC::compute_velocity_command()
 {
   auto start = std::chrono::high_resolution_clock::now();
   auto start_ros = m_t = this->get_clock()->now();
