@@ -22,9 +22,14 @@ set(msg_files
 set(srv_files
   )
 
+set(action_files
+  "action/FollowFormationLeaderTrajectory.action"
+  )
+
 rosidl_generate_interfaces(${PROJECT_NAME}
   ${msg_files}
   ${srv_files}
+  ${action_files}
   DEPENDENCIES trajectory_msgs
 )
 

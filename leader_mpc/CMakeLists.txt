@@ -77,7 +77,7 @@ ament_target_dependencies(${PROJECT_NAME} PUBLIC
 target_include_directories(${PROJECT_NAME} PUBLIC
   $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include>)
-pluginlib_export_plugin_description_file(nav2_core controller_plugin.xml) # Plugin
+#pluginlib_export_plugin_description_file(nav2_core controller_plugin.xml) # Plugin
 
 install(TARGETS ${PROJECT_NAME} leader_mpc_parameters
   EXPORT ${PROJECT_NAME}Targets
@@ -86,7 +86,6 @@ install(TARGETS ${PROJECT_NAME} leader_mpc_parameters
   RUNTIME DESTINATION bin/${PROJECT_NAME}
   )
 
-# TODO: EXPORT is missing!
 export(
   EXPORT ${PROJECT_NAME}Targets
   FILE "${PROJECT_BINARY_DIR}/leader_mpcTargets.cmake")

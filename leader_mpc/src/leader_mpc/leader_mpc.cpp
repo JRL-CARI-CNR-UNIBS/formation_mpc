@@ -1,83 +1,58 @@
 #include "leader_mpc/leader_mpc.hpp"
 
-std::array<Eigen::MatrixXd, 3> jointTrjToEigen(const trajectory_msgs::msg::JointTrajectory& msg)
-{
-  std::array<Eigen::MatrixXd, 3> trj;
-  Eigen::MatrixXd trj_mat(msg.joint_names.size(), msg.points.size());
-  for(size_t idx {0}; idx < msg.joint_names.size(); ++idx)
-  {
-    trj_mat.col(idx) = Eigen::VectorXd::Map(&(msg.points.at(idx).positions[0]), msg.points.at(idx).positions.size());
-  }
-  trj.at(0) = trj_mat;
-  trj_mat = Eigen::MatrixXd::Zero(msg.joint_names.size(), msg.points.size());
-  for(size_t idx {0}; idx < msg.joint_names.size(); ++idx)
-  {
-    trj_mat.col(idx) = Eigen::VectorXd::Map(&(msg.points.at(idx).velocities[0]), msg.points.at(idx).velocities.size());
-  }
-  trj.at(1) = trj_mat;
-  trj_mat = Eigen::MatrixXd::Zero(msg.joint_names.size(), msg.points.size());
-  for(size_t idx {0}; idx < msg.joint_names.size(); ++idx)
-  {
-    trj_mat.col(idx) = Eigen::VectorXd::Map(&(msg.points.at(idx).accelerations[0]), msg.points.at(idx).accelerations.size());
-  }
-  trj.at(2) = trj_mat;
-  return trj;
-}
-
-void raise_error(const std::string& what = "")
-{
-  throw std::runtime_error(what);
-}
+//std::array<Eigen::MatrixXd, 3> jointTrjToEigen(const trajectory_msgs::msg::JointTrajectory& msg)
+//{
+//  std::array<Eigen::MatrixXd, 3> trj;
+//  Eigen::MatrixXd trj_mat(msg.joint_names.size(), msg.points.size());
+//  for(size_t idx {0}; idx < msg.joint_names.size(); ++idx)
+//  {
+//    trj_mat.col(idx) = Eigen::VectorXd::Map(&(msg.points.at(idx).positions[0]), msg.points.at(idx).positions.size());
+//  }
+//  trj.at(0) = trj_mat;
+//  trj_mat = Eigen::MatrixXd::Zero(msg.joint_names.size(), msg.points.size());
+//  for(size_t idx {0}; idx < msg.joint_names.size(); ++idx)
+//  {
+//    trj_mat.col(idx) = Eigen::VectorXd::Map(&(msg.points.at(idx).velocities[0]), msg.points.at(idx).velocities.size());
+//  }
+//  trj.at(1) = trj_mat;
+//  trj_mat = Eigen::MatrixXd::Zero(msg.joint_names.size(), msg.points.size());
+//  for(size_t idx {0}; idx < msg.joint_names.size(); ++idx)
+//  {
+//    trj_mat.col(idx) = Eigen::VectorXd::Map(&(msg.points.at(idx).accelerations[0]), msg.points.at(idx).accelerations.size());
+//  }
+//  trj.at(2) = trj_mat;
+//  return trj;
+//}
 
 namespace formation_mpc {
-LeaderMPC::LeaderMPC()
+LeaderMPC::LeaderMPC(const std::string& name, const rclcpp::NodeOptions& options = rclcpp::NodeOptions())
+  : rclcpp_lifecycle::LifecycleNode(name, options)
 {
+  init();
 }
 
-void LeaderMPC::declare_parameters(const rclcpp_lifecycle::LifecycleNode::WeakPtr& node_weak)
+void LeaderMPC::declare_parameters()
 {
-  auto node = node_weak.lock();
-  m_param_listener = std::make_shared<ParamListener>(node);
+  m_param_listener = std::make_shared<ParamListener>(this->shared_from_this());
 }
 
-bool LeaderMPC::read_parameters(const rclcpp_lifecycle::LifecycleNode::SharedPtr& node)
+bool LeaderMPC::read_parameters()
 {
-//  auto node = node_weak.lock();
   if(!m_param_listener)
   {
-    RCLCPP_ERROR(node->get_logger(), "Error econuntered during init");
+    RCLCPP_ERROR(this->get_logger(), "Error econuntered during init");
     return false;
   }
   m_params = m_param_listener->get_params();
-
-  if(m_params.joints.empty())
-  {
-    RCLCPP_ERROR(node->get_logger(), "No joint specified");
-    return false;
-  }
-  if(m_params.command_joints.empty())
-  {
-    RCLCPP_ERROR(node->get_logger(), "No command joint specified");
-    return false;
-  }
-  if(m_params.control_interface.empty())
-  {
-    RCLCPP_ERROR(node->get_logger(), "No control interface specified");
-    return false;
-  }
-  if(m_params.state_interface.empty())
-  {
-    RCLCPP_ERROR(node->get_logger(), "No state interface specified");
-    return false;
-  }
   return true;
+
 }
 
-bool LeaderMPC::init(const rclcpp_lifecycle::LifecycleNode::WeakPtr& node_weak)
+bool LeaderMPC::init()
 {
   try
   {
-    declare_parameters(node_weak);
+    declare_parameters();
   }
   catch (const std::exception & e)
   {
@@ -88,58 +63,46 @@ bool LeaderMPC::init(const rclcpp_lifecycle::LifecycleNode::WeakPtr& node_weak)
   return true;
 }
 
-void LeaderMPC::configure(const rclcpp_lifecycle::LifecycleNode::WeakPtr & parent,
-                          std::string name, const std::shared_ptr<tf2_ros::Buffer> tf,
-                          const std::shared_ptr<nav2_costmap_2d::Costmap2DROS> costmap_ros)
+ CallbackReturn LeaderMPC::on_configure(const rclcpp_lifecycle::State& /*state*/)
 {
-  m_node_weak = parent;
-  auto node = parent.lock();
-  m_tf_buffer_ptr = std::make_unique<tf2_ros::Buffer>(node->get_clock());
+  m_tf_buffer_ptr = std::make_unique<tf2_ros::Buffer>(this->get_clock());
   m_tf_listener_ptr = std::make_unique<tf2_ros::TransformListener>(*m_tf_buffer_ptr);
-  if (this->read_parameters(node)) {raise_error("Error while reading parameters");}; //TODO: boh...}
+  if (this->read_parameters()) {
+    RCLCPP_ERROR(this->get_logger(), "Error while reading parameters");
+    return CallbackReturn::ERROR;
+  }; //TODO: boh...
 
-//  m_joints_command_subscriber = node->create_subscription<CmdType>(
-//                                  "~/commands", // TODO: da mettere come parametro
-//                                  rclcpp::SystemDefaultsQoS(),
-//                                  [this](const CmdType::SharedPtr msg) { this->m_rt_command_ptr.writeFromNonRT(msg); });
-
-  std::string robot_description_msg = "";
-
-  auto robot_sub = node->create_subscription<std_msgs::msg::String>(
+  auto robot_description__sub = this->create_subscription<std_msgs::msg::String>(
     m_params.robot_description_topic, rclcpp::QoS(rclcpp::KeepLast(1)).transient_local().reliable(),
-    [&robot_description_msg](std_msgs::msg::String::SharedPtr msg) { robot_description_msg = msg->data; });
-  while(robot_description_msg == "")
+    [this](std_msgs::msg::String::SharedPtr msg) { m_robot_description = msg->data; });
+
+  while(m_robot_description == "")
   {
-    RCLCPP_ERROR_STREAM(node->get_logger(), "robot_description_msg " << robot_description_msg);
+    RCLCPP_ERROR_STREAM(this->get_logger(), "robot_description_msg " << m_robot_description);
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
   }
 
   // rdyn
   urdf::Model urdf_model;
-  if(!urdf_model.initString(robot_description_msg))
+  if(!urdf_model.initString(m_robot_description))
   {
-    RCLCPP_ERROR_STREAM(node->get_logger(), "robot description cannot be parsed");
-//    return controller_interface::CallbackReturn::ERROR;
-    raise_error();
-    return;
+    RCLCPP_ERROR_STREAM(this->get_logger(), "robot description cannot be parsed");
+    return CallbackReturn::ERROR;
   }
   if(urdf_model.getLink(m_params.base_footprint) == nullptr)
   {
-    RCLCPP_ERROR_STREAM(node->get_logger(), m_params.base_footprint << " is missing from robot description");
-    raise_error();
-    return;
+    RCLCPP_ERROR_STREAM(this->get_logger(), m_params.base_footprint << " is missing from robot description");
+    return CallbackReturn::ERROR;
   }
   if(urdf_model.getLink(m_params.base_link) == nullptr)
   {
-    RCLCPP_ERROR_STREAM(node->get_logger(), m_params.base_link << " is missing from robot description");
-    raise_error();
-    return;
+    RCLCPP_ERROR_STREAM(this->get_logger(), m_params.base_link << " is missing from robot description");
+    return CallbackReturn::ERROR;
   }
   if(urdf_model.getLink(m_params.tool_frame) == nullptr)
   {
-    RCLCPP_ERROR_STREAM(node->get_logger(), m_params.tool_frame << " is missing from robot description");
-    raise_error();
-    return;
+    RCLCPP_ERROR_STREAM(this->get_logger(), m_params.tool_frame << " is missing from robot description");
+    return CallbackReturn::ERROR;
   }
 
   rdyn::ChainPtr rdyn_fixed_chain = std::make_shared<rdyn::Chain>(urdf_model,
@@ -150,9 +113,8 @@ void LeaderMPC::configure(const rclcpp_lifecycle::LifecycleNode::WeakPtr & paren
   urdf::Model fake_mobile_urdf;
   if(!fake_mobile_urdf.initFile(FAKE_MOBILE_BASE_PATH))
   {
-    RCLCPP_ERROR(node->get_logger(), "fake base urdf file not found");
-    raise_error();
-    return;
+    RCLCPP_ERROR(this->get_logger(), "fake base urdf file not found");
+    return CallbackReturn::ERROR;
   }
   m_nax_arm = rdyn_fixed_chain->getActiveJointsNumber();
   rdyn::ChainPtr rdyn_fake_mobile_chain = std::make_shared<rdyn::Chain>(fake_mobile_urdf,
@@ -231,147 +193,90 @@ void LeaderMPC::configure(const rclcpp_lifecycle::LifecycleNode::WeakPtr & paren
   m_target_dx.resize(m_prediction_horizon * 6);
   m_target_dx.setZero();
 
-//  k_e_f = m_params.followers.trj_tollerance;
-
-//  if(m_params.followers.names.size() == 0)
-//  {
-//    RCLCPP_ERROR(node->get_logger(), "No follower specified");
-//  }
-//  else if (m_params.followers.names.size() != m_params.followers.nax.size())
-//  {
-//    RCLCPP_FATAL(node->get_logger(), "follower names and nax arrays have different dimensions");
-//    raise_error();
-//    return;
-//  }
-//  m_followers = m_params.followers.names;
-
-//  std::transform(m_params.followers.names.begin(),
-//                 m_params.followers.names.end(),
-//                 m_params.followers.nax.begin(),
-//                 std::inserter(m_flw_q, m_flw_q.end()),
-//                 [](const std::string& s, const int i){
-//    return std::make_pair<std::string const&, Eigen::VectorXd const&>(s,Eigen::VectorXd::Zero(i)); //NOTE: potrebbe essere un errore passarli per riferimento
-//  });
-//  std::transform(m_params.followers.names.begin(),
-//                 m_params.followers.names.end(),
-//                 m_params.followers.nax.begin(),
-//                 std::inserter(m_flw_dq, m_flw_dq.end()),
-//                 [](const std::string& s, const int i){
-//    return std::make_pair<std::string const&, Eigen::VectorXd const&>(s,Eigen::VectorXd::Zero(i)); //NOTE: potrebbe essere un errore passarli per riferimento
-//  });
-//  std::transform(m_params.followers.names.begin(),
-//                 m_params.followers.names.end(),
-//                 m_params.followers.nax.begin(),
-//                 std::inserter(m_flw_ddq, m_flw_ddq.end()),
-//                 [](const std::string& s, const int i){
-//    return std::make_pair<std::string const&, Eigen::VectorXd const&>(s,Eigen::VectorXd::Zero(i)); //NOTE: potrebbe essere un errore passarli per riferimento
-//  });
-
-  m_cartesian_velocity_limit = Eigen::VectorXd::Map(&m_params.base_max_vel[0], 3);
-
-  // NOTE: Potrebbe essere sbagliato usare la stessa function per le callback
-//  m_flw_trj_sub.resize(m_params.followers.names.size());
-//  std::transform(m_params.followers.names.begin(),
-//                 m_params.followers.names.end(),
-//                 m_flw_trj_sub.begin(),
-//                 [this, &node](const std::string& s) -> rclcpp::Subscription<trajectory_msgs::msg::JointTrajectory>::SharedPtr {
-//    std::string topic {s+"/"+m_params.followers.trj_topic};
-//    return node->create_subscription<trajectory_msgs::msg::JointTrajectory>(s+"/"+m_params.followers.trj_topic, 10, [this, &s](const trajectory_msgs::msg::JointTrajectory& msg)->void{this->updateFollowerTrjCallback(msg, s);});
-//  });
-
-  m_leader_trj__pub = node->create_publisher<formation_msgs::msg::TrjOptimResults>(m_params.trj_leader_topic, 10);
-  m_joint_trajectory__pub = node->create_publisher<trajectory_msgs::msg::JointTrajectory>(m_params.cmd_trj_topic, 10);
-  m_cmd_vel__pub = node->create_publisher<geometry_msgs::msg::TwistStamped>(m_params.cmd_vel_topic, 10);
-  m_joint_state__sub = node->create_subscription<sensor_msgs::msg::JointState>("/joint_states", 10, [this](const sensor_msgs::msg::JointState& msg){
+  m_leader_trj__pub = this->create_publisher<formation_msgs::msg::TrjOptimResults>(m_params.trj_leader_topic, 10);
+  m_joint_trajectory__pub = this->create_publisher<trajectory_msgs::msg::JointTrajectory>(m_params.cmd_trj_topic, 10);
+  m_cmd_vel__pub = this->create_publisher<geometry_msgs::msg::TwistStamped>(m_params.cmd_vel_topic, 10);
+  m_joint_state__sub = this->create_subscription<sensor_msgs::msg::JointState>("/joint_states", 10, [this](const sensor_msgs::msg::JointState& msg){
+    std::lock_guard<std::mutex> l(m_mtx);
     for(size_t idx = 0; idx < msg.name.size(); ++idx)
     {
       m_q_now.col(0)(idx) = msg.position.at(idx);
     }
   }); // TODO: metti fra parametri il topic
-  RCLCPP_INFO(node->get_logger(), "configure successful");
+  std::chrono::milliseconds(m_dt);
+  RCLCPP_INFO(this->get_logger(), "configure successful");
+  return CallbackReturn::SUCCESS;
 }
 
-void LeaderMPC::activate()
+CallbackReturn LeaderMPC::on_activate(const rclcpp_lifecycle::State& /*state*/)
 {
 
   // Aggiornamento m_q_now fatto da subscriber
-  auto node = m_node_weak.lock();
 //  Eigen::Isometry3d pose_base_in_map;
 //  if(!m_tf_buffer_ptr->canTransform(m_base_footprint,
 //                               m_map_frame,
-//                               node->now(),
+//                               this->now(),
 //                               rclcpp::Duration::from_seconds(10))
 //     )
 //  {
-//    RCLCPP_ERROR_STREAM(node->get_logger(), "Cannot find transform from " << m_map_frame << " to " << m_base_footprint << ". Cannot activate controller.");
+//    RCLCPP_ERROR_STREAM(this->get_logger(), "Cannot find transform from " << m_map_frame << " to " << m_base_footprint << ". Cannot activate controller.");
 //  }
 //  else
 //  {
 //    geometry_msgs::msg::TransformStamped tf_map_to_base = m_tf_buffer_ptr->lookupTransform(m_base_footprint,
 //                                                                                      m_map_frame,
-//                                                                                      node->now());
+//                                                                                      this->now());
 //    pose_base_in_map = tf2::transformToEigen(tf_map_to_base);
 //  }
 
-  acquireFormation();
+//  acquireFormation();
 
-  RCLCPP_INFO(node->get_logger(), "Activate successfully");
+  RCLCPP_INFO(this->get_logger(), "Activate successfully");
+  return CallbackReturn::SUCCESS;
 }
 
-void LeaderMPC::deactivate()
+CallbackReturn LeaderMPC::on_deactivate(const rclcpp_lifecycle::State& /*state*/)
 {
+  return CallbackReturn::SUCCESS;
 }
 
-void LeaderMPC::setPlan(const nav_msgs::msg::Path & path)
+void LeaderMPC::setPlan(const trajectory_msgs::msg::MultiDOFJointTrajectory& trj)
 {
-  // Set plan
-  m_plan_path = path;
-  for(auto pose = path.poses.begin(); pose != path.poses.end(); ++pose)
-
-  m_is_new_plan = true;
-  m_t = rclcpp::Time(0.0);
+  size_t size = trj.points.size();
+  m_plan.clear();
+  m_plan.resize(size);
+  for(size_t idx = 0; idx < size; ++idx)
+  {
+    tf2::fromMsg(trj.points.at(idx).transforms.at(0), m_plan.pose.at(idx));
+    tf2::fromMsg(trj.points.at(idx).velocities.at(0), m_plan.twist.at(idx));
+    tf2::fromMsg(trj.points.at(idx).accelerations.at(0), m_plan.acc.at(idx));
+    m_plan.time.at(idx) = rclcpp::Time(trj.points.at(idx).time_from_start.sec,
+                                       trj.points.at(idx).time_from_start.nanosec);
+  }
+  m_plan.started = false;
 }
 
-geometry_msgs::msg::TwistStamped LeaderMPC::computeVelocityCommands(const geometry_msgs::msg::PoseStamped & /*robot_pose*/,
-                                                                    const geometry_msgs::msg::Twist & /*robot_speed*/,
-                                                                    nav2_core::GoalChecker * /*goal_checker*/)
+geometry_msgs::msg::TwistStamped LeaderMPC::computeVelocityCommands()
 {
-  auto node = m_node_weak.lock();
   auto start = std::chrono::high_resolution_clock::now();
-  auto start_ros = m_t = node->get_clock()->now();
-
+  auto start_ros = m_t = this->get_clock()->now();
+  if(!m_plan.started)
+  {
+    m_plan.start = start_ros;
+    m_plan.started = true;
+  }
   // update joint state
   // NOTA: mi aspetto che il joint state sia aggiornato dal subscriber?
 
-
-
-  std::unique_lock<std::mutex> trj_lock(m_mtx);
-
-//  trj_lock.lock(); // for m_followers_q|dq|ddq access
-//  if(std::find_if(m_followers_last_message_stamp.begin(),
-//                  m_followers_last_message_stamp.end(),
-//                  [this](const std::pair<std::string, rclcpp::Time>& pair){
-//    return (this->node->get_clock()->now() - pair.second) > k_max_delay;
-//  }) != m_followers_last_message_stamp.end())
-//  {
-//    RCLCPP_FATAL(node->get_logger(), "Follower position not up to date -> Failure");
-//    // TODO: manda riferimento 0 a tutti i follower
-//    return controller_interface::return_type::ERROR;
-//  }
-//  std::unordered_map<std::string, Eigen::MatrixXd> flw_q(m_flw_q);
-//  std::unordered_map<std::string, Eigen::MatrixXd> flw_dq(m_flw_dq);
-//  std::unordered_map<std::string, Eigen::MatrixXd> flw_ddq(m_flw_ddq);
-//  trj_lock.unlock();
-
-//  Eigen::Vector6d target_dx_eig;
-  // tf2::fromMsg(target_dx_msg->get(), m_target_dx);
-  // m_target_x
-  geometry_msgs::msg::Pose target_x__msg;
-  interpolate(target_x__msg);
-  tf2::fromMsg(target_x__msg, m_target_x);
-  m_target_dx.head(3) = m_cartesian_velocity_limit;
-  m_target_dx.tail(3) = m_cartesian_rotation_velocity_limit; // TODO: velocità all'istante precedente?
-
+//  std::unique_lock<std::mutex> trj_lock(m_mtx);
+  Eigen::Affine3d target_x;
+  Eigen::VectorXd target_dx;
+  for(size_t idx = 0; idx < m_prediction_horizon; ++idx)
+  {
+    interpolate(m_t, m_plan.start, target_dx, target_x);
+    m_target_dx.segment<6>(idx, 1) = target_dx;
+    if(idx == 0) m_target_x = target_x;
+  }
 
 //  m_cartesian_leader_task.setTargetScaling();
   m_cartesian_leader_task.setTargetTrajectory(m_target_dx, m_target_x);
@@ -408,7 +313,7 @@ geometry_msgs::msg::TwistStamped LeaderMPC::computeVelocityCommands(const geomet
     m_q.col(idx) = ((idx==0) ? m_q_now : m_q.col(idx-1)) + m_dq.col(idx)*m_dt; // FIXME: m_dt? oppure un dt legato all'invio dei messaggi?
   }
 
-  rclcpp::Time now = node->get_clock()->now();
+  rclcpp::Time now = this->get_clock()->now();
   //cmd_vel for base
   geometry_msgs::msg::TwistStamped vel_msg;
   vel_msg.header.stamp = now;
@@ -426,7 +331,6 @@ geometry_msgs::msg::TwistStamped LeaderMPC::computeVelocityCommands(const geomet
   trj_msg.points.at(0).positions = std::vector<double>(m_q.col(0).data(), m_q.col(0).data() + m_q.col(0).rows());
   trj_msg.points.at(0).velocities = std::vector<double>(m_dq.col(0).data(), m_dq.col(0).data() + m_dq.col(0).rows());
 
-//  m_cmd_vel__pub->publish(vel_msg);
   m_joint_trajectory__pub->publish(trj_msg);
 
   // Parte di comunicazione con il follower
@@ -445,106 +349,52 @@ geometry_msgs::msg::TwistStamped LeaderMPC::computeVelocityCommands(const geomet
   return vel_msg;
 }
 
-// ### Private ###
-void LeaderMPC::updateFollowerTrjCallback(const trajectory_msgs::msg::JointTrajectory& msg, const std::string& name)
+void loop()
 {
-  std::lock_guard lock {m_mtx}; // released once exit scope
-  auto trj_eigen = jointTrjToEigen(msg);
-  m_flw_q.at(name) = trj_eigen.at(0);
-  m_flw_dq.at(name) = trj_eigen.at(1);
-  m_flw_ddq.at(name) = trj_eigen.at(2);
-  m_followers_last_message_stamp.at(name) = rclcpp::Time(msg.header.stamp);
+
 }
 
-void LeaderMPC::acquireFormation()
+void LeaderMPC::interpolate(const rclcpp::Time& t_t, const rclcpp::Time& t_start, Eigen::VectorXd& interp_vel, Eigen::Affine3d& out)
 {
-  auto node = m_node_weak.lock();
-  using namespace std::chrono_literals;
-  std::unique_ptr<tf2_ros::Buffer> tf_buffer_ptr = std::make_unique<tf2_ros::Buffer>(node->get_clock());;
-  std::unique_ptr<tf2_ros::TransformListener> tf_listener_ptr = std::make_unique<tf2_ros::TransformListener>(*m_tf_buffer_ptr);
-
-  for(size_t idx = 0; idx < m_followers.size(); ++idx)
+  for(size_t idx = 1; idx < m_plan.time.size(); idx++)
   {
-    rclcpp::Time t = node->get_clock()->now();
-    while(!tf_buffer_ptr->canTransform(m_followers.at(idx)+"/"+m_tool_frame,
-                                       this_frame(m_tool_frame),
-                                       t)) std::this_thread::sleep_for(100ms);
-    geometry_msgs::msg::TransformStamped pose = tf_buffer_ptr->lookupTransform(m_followers.at(idx)+"/"+m_tool_frame, this_frame(m_tool_frame), t);
-    m_follower_tool_in_leader_tool.at(m_followers.at(idx)) = tf2::transformToEigen(pose);
-  }
-  RCLCPP_DEBUG(node->get_logger(), "Formation acquired");
-}
-
-void LeaderMPC::interpolate(geometry_msgs::msg::Pose& out)
-{
-  for(size_t idx = 1; idx < m_plan.points.size(); idx++)
-  {
-    rclcpp::Time t_start = rclcpp::Time((m_t - m_plan.points.at(idx).time_from_start).seconds());
-    if(!(    ((t_start - m_plan.points.at(idx).time_from_start).seconds() < 0)
-          && ((t_start - m_plan.points.at(idx-1).time_from_start).seconds() >= 0)
+    rclcpp::Time t_start = rclcpp::Time(t_t);
+    if(!(    ((t_start - m_plan.time.at(idx)).seconds() < 0)
+          && ((t_start - m_plan.time.at(idx-1)).seconds() >= 0)
          )
        )
     {
       continue;
     }
-    double delta_time = (m_plan.points.at(idx).time_from_start.sec - m_plan.points.at(idx-1).time_from_start.sec)
-                + 1e-9 * (m_plan.points.at(idx).time_from_start.nanosec - m_plan.points.at(idx-1).time_from_start.nanosec);
-    double t = (t_start - m_plan.points.at(idx).time_from_start).seconds();
+    double delta_time = (m_plan.time.at(idx) - m_plan.time.at(idx-1)).seconds();
+    double t = (t_start - m_plan.time.at(idx-1)).seconds();
     double ratio = t / delta_time;
-    trajectory_msgs::msg::MultiDOFJointTrajectory pnt;
-    Eigen::Isometry3d pose_next, pose_prev, pose_interp;
-    tf2::fromMsg(m_plan.points.at(idx).transforms.at(0), pose_next);
-    tf2::fromMsg(m_plan.points.at(idx-1).transforms.at(0), pose_prev);
-    pose_interp.linear() = Eigen::Quaterniond(pose_prev.linear()).slerp(ratio, Eigen::Quaterniond(pose_next.linear())).toRotationMatrix();
-    pose_interp.translation() = ratio * pose_next.translation() + (1-ratio)*pose_prev.translation();
+    Eigen::Isometry3d pose_interp;
 
-    out = tf2::toMsg(pose_interp);
+    const Eigen::Vector3d& p0 = m_plan.pose.at(idx-1).translation();
+    const Eigen::Vector3d& p1 = m_plan.pose.at(idx).translation();
+    const Eigen::Vector3d& v0 = m_plan.twist.at(idx-1).head<3>();
+    const Eigen::Vector3d& v1 = m_plan.twist.at(idx).head<3>();
+
+    interp_vel.head<3>() =   3 * (2*p0 + v0 - 2*p1 + v1) * std::pow(t,2)
+                           + 2 * (-3*p0 + 3*p1 - 2*v0 - v1) * t
+                           + v0;
+    interp_vel.tail<3>() = ratio * m_plan.twist.at(idx).tail<3>() + (1-ratio) * m_plan.twist.at(idx-1).tail<3>();
+
+    double h00, h01, h10, h11;
+    h00 = 2*std::pow(ratio,3) - 3*std::pow(ratio,2) + 1;
+    h10 = std::pow(ratio,3) - 2*std::pow(ratio,2) + ratio;
+    h01 = -2*std::pow(ratio,3) + 3*std::pow(ratio,2);
+    h11 = std::pow(ratio,3) - std::pow(ratio,2);
+    out.translation() =   h00 * m_plan.pose.at(idx-1).translation()
+                                + h10 * m_plan.twist.at(idx-1).head<3>()
+                                + h01 * m_plan.pose.at(idx).translation()
+                                + h11 * m_plan.twist.at(idx).head<3>();
+    out.linear() = Eigen::Quaterniond(m_plan.pose.at(idx-1).linear()).slerp(ratio, Eigen::Quaterniond(m_plan.pose.at(idx).linear())).toRotationMatrix();
+    break;
   }
 }
 
-/*bool LeaderMPC::loadFollowerMobileChain(const std::string& t_name,
-/                             const std::string& t_base_frame,
-/                             const std::string& t_tool_frame,
-/                             const std::string& t_robot_description,
-/                             rdyn::ChainPtr& t_rdyn_chain)
-/{
-/  urdf::Model urdf_model;
-/  if(!urdf_model.initString(t_robot_description))
-/  {
-/    RCLCPP_ERROR_STREAM(node->get_logger(), "robot description cannot be parsed");
-/    return false;
-/  }
-/  if(urdf_model.getLink(t_base_frame) == nullptr)
-/  {
-/    RCLCPP_ERROR_STREAM(node->get_logger(), t_base_frame << " is missing from robot description");
-/    return false;
-/  }
-/  if(urdf_model.getLink(t_tool_frame) == nullptr)
-/  {
-/    RCLCPP_ERROR_STREAM(node->get_logger(), t_tool_frame << " is missing from robot description");
-/    return false;
-/  }
 
-/  rdyn::ChainPtr rdyn_fixed_chain = std::make_shared<rdyn::Chain>(urdf_model,
-/                                                     t_base_frame,
-/                                                     t_tool_frame,
-/                                                     m_gravity);
-
-/  urdf::Model fake_mobile_urdf;
-/  if(!fake_mobile_urdf.initFile(FAKE_MOBILE_BASE_PATH))
-/  {
-/    RCLCPP_ERROR(node->get_logger(), "fake base urdf file not found");
-/    return false;
-/  }
-/  rdyn::ChainPtr rdyn_fake_mobile_chain = std::make_shared<rdyn::Chain>(fake_mobile_urdf,
-/                                                         m_params.map_frame,
-/                                                         "mount_link", // TODO: parameter? constant?
-/                                                         m_gravity);
-/  t_rdyn_chain = rdyn::mergeChains(rdyn_fake_mobile_chain, rdyn_fixed_chain);
-/  return true;
-}*/
 
 } // formation_mpc
-
-#include "pluginlib/class_list_macros.hpp"
-PLUGINLIB_EXPORT_CLASS(formation_mpc::LeaderMPC, nav2_core::Controller);

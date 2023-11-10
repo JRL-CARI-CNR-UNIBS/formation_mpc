@@ -66,37 +66,57 @@
 
 namespace formation_mpc
 {
+  using CallbackReturn = rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn;
 constexpr double k_task_level_multiplier = 1e-3;
-class LeaderMPC : public nav2_core::Controller // FIXME: ros2_controller or nav2_controller or moveit_local_planner
+class LeaderMPC : public rclcpp_lifecycle::LifecycleNode // FIXME: ros2_controller or nav2_controller or moveit_local_planner
 {
-public:
-  LeaderMPC();
-  geometry_msgs::msg::TwistStamped computeVelocityCommands(
-      const geometry_msgs::msg::PoseStamped & robot_pose,
-      const geometry_msgs::msg::Twist & robot_speed,
-      nav2_core::GoalChecker * goal_checker) override;
+public: 
+  LeaderMPC(const std::string& name, const rclcpp::NodeOptions& options);
+  geometry_msgs::msg::TwistStamped computeVelocityCommands();
 
-  void setPlan(const nav_msgs::msg::Path & path) override;
+  void setPlan(const trajectory_msgs::msg::MultiDOFJointTrajectory& trj);
 
-  void setSpeedLimit(const double & speed_limit, const bool & percentage) override;
+  void setSpeedLimit(const double & speed_limit, const bool & percentage);
 
-  bool init(const rclcpp_lifecycle::LifecycleNode::WeakPtr&);
-  void configure (const rclcpp_lifecycle::LifecycleNode::WeakPtr & parent,
-                  std::string name, const std::shared_ptr<tf2_ros::Buffer> tf,
-                  const std::shared_ptr<nav2_costmap_2d::Costmap2DROS> costmap_ros) override;
-  void activate  () override;
-  void deactivate() override;
-  void cleanup   () override;
-  void error     ();
-  void shutdown  ();
+  bool init();
+  CallbackReturn on_configure (const rclcpp_lifecycle::State& /*state*/) override;
+  CallbackReturn on_activate  (const rclcpp_lifecycle::State& /*state*/) override;
+  CallbackReturn on_deactivate(const rclcpp_lifecycle::State& /*state*/) override;
+  CallbackReturn on_cleanup   (const rclcpp_lifecycle::State& /*state*/) override;
+  CallbackReturn on_error     (const rclcpp_lifecycle::State& /*state*/) override;
+  CallbackReturn on_shutdown  (const rclcpp_lifecycle::State& /*state*/) override;
   void reset     ();
 
 protected:
 
+  rclcpp::TimerBase::SharedPtr m_update_timer;
+
   rclcpp::Time m_t {0};
+  rclcpp::Time t_start {0};
   bool m_is_new_plan {false};
-  nav_msgs::msg::Path m_plan_path;
-  trajectory_msgs::msg::MultiDOFJointTrajectory m_plan;
+  struct Trajectory{
+    std::vector<Eigen::Affine3d> pose;
+    std::vector<Eigen::Vector6d> twist;
+    std::vector<Eigen::Vector6d> acc;
+    std::vector<rclcpp::Time> time;
+    rclcpp::Time start;
+    bool started;
+    void clear()
+    {
+      pose.clear();
+      twist.clear();
+      acc.clear();
+      time.clear();
+    }
+    void resize(long n)
+    {
+      pose.resize(n);
+      twist.resize(n);
+      acc.resize(n);
+      time.resize(n);
+    }
+  } m_plan;
+
   std::vector<geometry_msgs::msg::PoseStamped> m_plan_timed;
 
   const rclcpp::Duration k_max_delay = rclcpp::Duration::from_nanoseconds(1e8); // 100ms
@@ -120,7 +140,7 @@ protected:
   Eigen::MatrixXd m_dq;
   Eigen::MatrixXd m_ddq;
 
-  Eigen::Vector6d m_target_dx;
+  Eigen::VectorXd m_target_dx;
   Eigen::Affine3d m_target_x;
 
   // Publishers
@@ -129,12 +149,12 @@ protected:
   rclcpp::Publisher<trajectory_msgs::msg::JointTrajectory>::SharedPtr m_joint_trajectory__pub;
 
   // Subscribers
+  rclcpp::Subscription<std_msgs::msg::String>::SharedPtr robot_description__sub;
   rclcpp::Subscription<sensor_msgs::msg::JointState>::SharedPtr m_joint_state__sub;
   //  rclcpp::Subscription<geometry_msgs::msg::Twist>::SharedPtr m_joints_command__sub; // ??
 
   std::vector<std::string> m_joint_names;
-
-  std::vector<std::string> m_command_interface_types;
+  std::string m_robot_description;
 
   std::string m_base_footprint  {"base_footprint"};
   std::string m_base_link       {"base_link"};
@@ -143,23 +163,17 @@ protected:
   std::string m_namespace       {"leader"};
   std::string this_frame(const std::string& s) { return m_namespace + "/" + s;}
 
-//  const std::vector<std::string> m_allowed_interface_types = {
-//    hardware_interface::HW_IF_POSITION,
-//    hardware_interface::HW_IF_VELOCITY,
-//    hardware_interface::HW_IF_ACCELERATION};
 
-//  std::vector<rclcpp::Subscription<trajectory_msgs::msg::JointTrajectory>::SharedPtr> m_flw_trj_sub;
-//  std::vector<rclcpp::Publisher<formation_msgs::msg::TrjOptimResults>::SharedPtr> m_flw_trj_pub;
 
   std::unique_ptr<tf2_ros::TransformListener> m_tf_listener_ptr;
   std::unique_ptr<tf2_ros::Buffer> m_tf_buffer_ptr;
 
-  std::vector<std::string> m_followers;
-  std::unordered_map<std::string, Eigen::MatrixXd> m_flw_q;
-  std::unordered_map<std::string, Eigen::MatrixXd> m_flw_dq;
-  std::unordered_map<std::string, Eigen::MatrixXd> m_flw_ddq;
-  std::unordered_map<std::string, rclcpp::Time> m_followers_last_message_stamp;
-  std::unordered_map<std::string, Eigen::Isometry3d> m_follower_tool_in_leader_tool;
+//  std::vector<std::string> m_followers;
+//  std::unordered_map<std::string, Eigen::MatrixXd> m_flw_q;
+//  std::unordered_map<std::string, Eigen::MatrixXd> m_flw_dq;
+//  std::unordered_map<std::string, Eigen::MatrixXd> m_flw_ddq;
+//  std::unordered_map<std::string, rclcpp::Time> m_followers_last_message_stamp;
+//  std::unordered_map<std::string, Eigen::Isometry3d> m_follower_tool_in_leader_tool;
 
   bool m_is_omni {false};
 
@@ -174,8 +188,8 @@ protected:
   rdyn::ChainPtr m_rdyn_full_chain;
 //  std::unordered_map<std::string, rdyn::ChainPtr> m_flw_rdyn_chain_map;
 
-  Eigen::Vector3d       m_cartesian_velocity_limit {0.0, 0.0, 0.0};
-  Eigen::Vector3d       m_cartesian_rotation_velocity_limit {0.0,0.0,0.0};
+//  Eigen::Vector3d       m_cartesian_velocity_limit {0.0, 0.0, 0.0};
+//  Eigen::Vector3d       m_cartesian_rotation_velocity_limit {0.0,0.0,0.0};
 
   // HQP solution
   Eigen::VectorXd       m_solutions;
@@ -208,17 +222,13 @@ protected:
   // Parameters generation
   std::shared_ptr<ParamListener> m_param_listener;
   Params m_params;
-  void declare_parameters (const rclcpp_lifecycle::LifecycleNode::WeakPtr&);
-  bool read_parameters    (const rclcpp_lifecycle::LifecycleNode::SharedPtr&);
+  void declare_parameters ();
+  bool read_parameters    ();
+
 private:
-  void updateFollowerTrjCallback(const trajectory_msgs::msg::JointTrajectory& msg, const std::string& name);
-  void acquireFormation();
-  void interpolate(geometry_msgs::msg::Pose& out);
-//  bool loadFollowerMobileChain(const std::string& t_name,
-//                                    const std::string& t_base_frame,
-//                                    const std::string& t_tool_frame,
-//                                    const std::string& t_robot_description,
-//                                    rdyn::ChainPtr& t_rdyn_chain);
+//  void updateFollowerTrjCallback(const trajectory_msgs::msg::JointTrajectory& msg, const std::string& name);
+//  void acquireFormation();
+  void interpolate(const rclcpp::Time& t_t, const rclcpp::Time& t_start, Eigen::VectorXd& interp_vel, Eigen::Affine3d& out);
 };
 } // formation_mpc
 //PLUGINLIB_EXPORT_CLASS;
