@@ -81,6 +81,7 @@ bool LeaderMPC::init()
     RCLCPP_ERROR_STREAM(this->get_logger(), "robot_description_msg " << m_robot_description);
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
   }
+  RCLCPP_DEBUG(this->get_logger(), "Robot description: OK");
 
   // rdyn
   urdf::Model urdf_model;
@@ -127,7 +128,10 @@ bool LeaderMPC::init()
   std::string e;
   // FIXME: ricontrolla a cosa serve rdyn::chain->setInputJointsName
   m_rdyn_full_chain->setInputJointsName(m_params.joints,e);
+  m_joint_names = m_rdyn_full_chain->getActiveJointsName();
+  RCLCPP_DEBUG(this->get_logger(), "Rdyn: OK");
 
+  RCLCPP_DEBUG(this->get_logger(), "MPC config: start");
   int nax = m_rdyn_full_chain->getActiveJointsNumber();
   m_nax = nax;
   m_model.setPredictiveHorizon(m_params.prediction_horizon);
@@ -182,7 +186,7 @@ bool LeaderMPC::init()
   m_ineq_array.addConstraint(&m_lb_acc);
   m_ineq_array.addConstraint(&m_ub_acc);
   m_ineq_array.addConstraint(&m_max_scaling);
-
+  RCLCPP_DEBUG(this->get_logger(), "MPC config: OK");
 
 
   m_q_now.resize(nax);
@@ -203,40 +207,27 @@ bool LeaderMPC::init()
       m_q_now.col(0)(idx) = msg.position.at(idx);
     }
   }); // TODO: metti fra parametri il topic
-  std::chrono::milliseconds(m_dt);
+
+  m_trj_server__action = rclcpp_action::create_server<FollowFormationTrajectory>(
+                           this,
+                           "follow_leader_trajectory",
+                           std::bind(&LeaderMPC::handle_goal, this, _1, _2),
+                           std::bind(&LeaderMPC::handle_cancel, this, _1),
+                           std::bind(&LeaderMPC::handle_accepted, this, _1));
+//  std::chrono::milliseconds(m_dt);
   RCLCPP_INFO(this->get_logger(), "configure successful");
   return CallbackReturn::SUCCESS;
 }
 
 CallbackReturn LeaderMPC::on_activate(const rclcpp_lifecycle::State& /*state*/)
 {
-
-  // Aggiornamento m_q_now fatto da subscriber
-//  Eigen::Isometry3d pose_base_in_map;
-//  if(!m_tf_buffer_ptr->canTransform(m_base_footprint,
-//                               m_map_frame,
-//                               this->now(),
-//                               rclcpp::Duration::from_seconds(10))
-//     )
-//  {
-//    RCLCPP_ERROR_STREAM(this->get_logger(), "Cannot find transform from " << m_map_frame << " to " << m_base_footprint << ". Cannot activate controller.");
-//  }
-//  else
-//  {
-//    geometry_msgs::msg::TransformStamped tf_map_to_base = m_tf_buffer_ptr->lookupTransform(m_base_footprint,
-//                                                                                      m_map_frame,
-//                                                                                      this->now());
-//    pose_base_in_map = tf2::transformToEigen(tf_map_to_base);
-//  }
-
-//  acquireFormation();
-
   RCLCPP_INFO(this->get_logger(), "Activate successfully");
   return CallbackReturn::SUCCESS;
 }
 
 CallbackReturn LeaderMPC::on_deactivate(const rclcpp_lifecycle::State& /*state*/)
 {
+  RCLCPP_WARN(this->get_logger(), "on_deactive() not implemented properly. Skipping...");
   return CallbackReturn::SUCCESS;
 }
 
@@ -253,12 +244,12 @@ void LeaderMPC::set_plan(const trajectory_msgs::msg::MultiDOFJointTrajectory& tr
     m_plan.time.at(idx) = rclcpp::Time(trj.points.at(idx).time_from_start.sec,
                                        trj.points.at(idx).time_from_start.nanosec);
   }
+  RCLCPP_INFO(this->get_logger(), "New plan received");
   m_plan.started = false;
 }
 
 geometry_msgs::msg::TwistStamped LeaderMPC::compute_velocity_command()
 {
-  auto start = std::chrono::high_resolution_clock::now();
   auto start_ros = m_t = this->get_clock()->now();
   if(!m_plan.started)
   {
@@ -293,16 +284,6 @@ geometry_msgs::msg::TwistStamped LeaderMPC::compute_velocity_command()
   Eigen::VectorXd ce0;
   taskQP::math::computeHQPSolution(m_sot, CE, ce0, m_ineq_array.matrix(), m_ineq_array.vector(), m_solutions);
   double scaling = m_solutions(m_nax * m_prediction_horizon);
-
-//  Eigen::VectorXd tmp_q(m_q), tmp_dq(m_dq);
-//  tmp_dq = m_solutions.head(m_nax);
-//  tmp_q += tmp_dq*m_dt;
-
-//  if(std::find_if(m_followers.begin(), m_followers.end(),[&tmp_q, &flw_q, this](const std::string& s){
-//                  Eigen::BDCSVD<Eigen::MatrixXd> svd(m_flw_rdyn_chain_map.at(s)->getJacobian(flw_q.at(s).col(0)), Eigen::ComputeThinU | Eigen::ComputeThinV);
-//                  Eigen::VectorXd dq_n = svd.solve(m_follower_tool_in_leader_tool.at(s)*m_rdyn_full_chain->getJacobian(tmp_q)*m_solutions.head(m_nax));
-//                  return (dq_n - m_flw_dq.at(s).col(0)).norm() < k_e_f;
-//  }) != m_followers.end());
 
   m_model.updatePredictions(m_solutions.head(m_nax*m_prediction_horizon));
   m_model.updateState(m_solutions.head(m_nax));
@@ -395,6 +376,71 @@ void LeaderMPC::interpolate(const rclcpp::Time& t_t, const rclcpp::Time& t_start
   }
 }
 
+rclcpp_action::GoalResponse LeaderMPC::handle_goal(const rclcpp_action::GoalUUID & uuid, std::shared_ptr<const FollowFormationTrajectory::Goal> goal)
+{
+  RCLCPP_INFO(this->get_logger(), "Received goal request");
+  if(this->get_current_state().label() != "Active")
+  {
+    RCLCPP_ERROR(this->get_logger(), "Cannot accept request. Lifecycle state: %s", this->get_current_state().label().c_str());
+    return rclcpp_action::GoalResponse::ACCEPT_AND_EXECUTE;
+  }
+  else
+  {
+    RCLCPP_INFO(this->get_logger(), "Goal request accepted");
+  }
+  (void)uuid;
+  set_plan(goal->payload_cartesian_trajectory);
+  return rclcpp_action::GoalResponse::ACCEPT_AND_EXECUTE;
+}
 
+rclcpp_action::CancelResponse LeaderMPC::handle_cancel(const std::shared_ptr<GoalHandleFFT> goal_handle)
+{
+  RCLCPP_WARN(this->get_logger(), "Received request to cancel goal");
+  RCLCPP_WARN(this->get_logger(), "Proper cancel not implemented yet");
+  return rclcpp_action::CancelResponse::ACCEPT;
+}
+
+void LeaderMPC::handle_accepted(const std::shared_ptr<GoalHandleFFT> goal_handle)
+{
+  std::thread{std::bind(&LeaderMPC::update, this, _1), goal_handle}.detach();
+}
+
+void LeaderMPC::update(const std::shared_ptr<GoalHandleFFT> goal_handle)
+{
+  using namespace std::chrono_literals;
+  rclcpp::Time t_start = get_clock()->now();
+  rclcpp::Rate rate(m_dt);
+  Eigen::Affine3d actual_pose;
+  while(!m_tf_buffer_ptr->canTransform(m_tool_frame, m_map_frame, t_start, 10s)) this->get_clock()->sleep_for(10ms);
+  geometry_msgs::msg::TransformStamped msg = m_tf_buffer_ptr->lookupTransform(m_tool_frame, m_map_frame, t_start);
+  tf2::fromMsg(msg, actual_pose);
+  std::shared_ptr<FollowFormationTrajectory::Result> result = std::make_shared<FollowFormationTrajectory::Result>();
+  std::shared_ptr<FollowFormationTrajectory::Feedback> feedback = std::make_shared<FollowFormationTrajectory::Feedback>();
+  t_start = this->get_clock()->now();
+  while(   (actual_pose.rotation() - m_plan.pose.back().rotation()).norm() > 1e-3
+        || (actual_pose.translation() - m_plan.pose.back().translation()).norm() > 1e-3)
+  {
+    compute_velocity_command();
+    feedback->header.stamp = this->get_clock()->now();
+    for(size_t idx = 0; idx < m_q.rows(); ++idx)
+    {
+      feedback->desired.positions.at(idx) = m_q.col(0)(idx);
+      feedback->desired.velocities.at(idx) = m_dq.col(0)(idx);
+    }
+    feedback->joint_names = m_joint_names;
+    goal_handle->publish_feedback(feedback);
+    if(!rate.sleep())
+    {
+      RCLCPP_WARN(get_logger(), "Cycle time too low! Cannot wait");
+    }
+  }
+  rclcpp::Time t_end = get_clock()->now();
+  if (rclcpp::ok())
+  {
+    result->error = 0;
+    goal_handle->succeed(result);
+    RCLCPP_INFO(this->get_logger(), "");
+  }
+}
 
 } // formation_mpc

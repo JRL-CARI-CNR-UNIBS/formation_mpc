@@ -45,13 +45,14 @@ set(THIS_PACKAGE_LIBRARIES_DEPENDENCIES
   nav2_core
   rclcpp
   rclcpp_lifecycle
+  rclcpp_action
+  rclcpp_components
   pluginlib
   geometry_msgs
   trajectory_msgs
   nav_msgs
   sensor_msgs
   map_msgs
-  nav2_msgs
   formation_msgs
   task_math
   tf2_ros
@@ -77,7 +78,6 @@ ament_target_dependencies(${PROJECT_NAME} PUBLIC
 target_include_directories(${PROJECT_NAME} PUBLIC
   $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include>)
-#pluginlib_export_plugin_description_file(nav2_core controller_plugin.xml) # Plugin
 
 install(TARGETS ${PROJECT_NAME} leader_mpc_parameters
   EXPORT ${PROJECT_NAME}Targets

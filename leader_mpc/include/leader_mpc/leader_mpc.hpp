@@ -8,16 +8,14 @@
 #include <iterator>
 #include <mutex>
 
-
-
 #include <Eigen/Core>
 #include <Eigen/Geometry>
 #include <Eigen/SVD>
 
 #include <rclcpp/rclcpp.hpp>
-#include <rclcpp/parameter.hpp>
 #include <rclcpp/wait_for_message.hpp>
-#include <rcl/time.h>
+#include <rclcpp_action/rclcpp_action.hpp>
+#include "rclcpp_components/register_node_macro.hpp"
 
 //#include <rclcpp_lifecycle/state.hpp>
 //#include <rclcpp_lifecycle/lifecycle_node.hpp>
@@ -54,7 +52,9 @@
 #include <trajectory_msgs/msg/multi_dof_joint_trajectory_point.hpp>
 #include <nav_msgs/msg/path.hpp>
 #include <sensor_msgs/msg/joint_state.hpp>
+
 #include "formation_msgs/msg/trj_optim_results.hpp"
+#include "formation_msgs/action/follow_formation_leader_trajectory.hpp"
 
 #include "subscription_notifier/subscription_notifier.h"
 
@@ -67,11 +67,16 @@
 namespace formation_mpc
 {
   using CallbackReturn = rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn;
-constexpr double k_task_level_multiplier = 1e-3;
+  using namespace std::placeholders;
+  constexpr double k_task_level_multiplier = 1e-3;
 class LeaderMPC : public rclcpp_lifecycle::LifecycleNode // FIXME: ros2_controller or nav2_controller or moveit_local_planner
 {
 public: 
+  using FollowFormationTrajectory = formation_msgs::action::FollowFormationLeaderTrajectory;
+  using GoalHandleFFT = rclcpp_action::ServerGoalHandle<FollowFormationTrajectory>;
+
   LeaderMPC(const std::string& name, const rclcpp::NodeOptions& options);
+
   geometry_msgs::msg::TwistStamped compute_velocity_command();
 
   void set_plan(const trajectory_msgs::msg::MultiDOFJointTrajectory& trj);
@@ -86,6 +91,8 @@ public:
   CallbackReturn on_error     (const rclcpp_lifecycle::State& /*state*/) override;
   CallbackReturn on_shutdown  (const rclcpp_lifecycle::State& /*state*/) override;
   void reset     ();
+
+  void update(const std::shared_ptr<GoalHandleFFT> goal_handle);
 
 protected:
 
@@ -144,17 +151,24 @@ protected:
   Eigen::Affine3d m_target_x;
 
   // Publishers
-  rclcpp::Publisher<formation_msgs::msg::TrjOptimResults>::SharedPtr m_leader_trj__pub;
-  rclcpp::Publisher<geometry_msgs::msg::TwistStamped>::SharedPtr m_cmd_vel__pub;
-  rclcpp::Publisher<trajectory_msgs::msg::JointTrajectory>::SharedPtr m_joint_trajectory__pub;
+  rclcpp::Publisher<formation_msgs::msg::TrjOptimResults>::SharedPtr    m_leader_trj__pub;
+  rclcpp::Publisher<geometry_msgs::msg::TwistStamped>::SharedPtr        m_cmd_vel__pub;
+  rclcpp::Publisher<trajectory_msgs::msg::JointTrajectory>::SharedPtr   m_joint_trajectory__pub;
 
   // Subscribers
-  rclcpp::Subscription<std_msgs::msg::String>::SharedPtr robot_description__sub;
-  rclcpp::Subscription<sensor_msgs::msg::JointState>::SharedPtr m_joint_state__sub;
+  rclcpp::Subscription<std_msgs::msg::String>::SharedPtr          robot_description__sub;
+  rclcpp::Subscription<sensor_msgs::msg::JointState>::SharedPtr   m_joint_state__sub;
   //  rclcpp::Subscription<geometry_msgs::msg::Twist>::SharedPtr m_joints_command__sub; // ??
 
+  // Actions
+  rclcpp_action::Server<FollowFormationTrajectory>::SharedPtr m_trj_server__action;
+  rclcpp_action::CancelResponse handle_cancel(const std::shared_ptr<GoalHandleFFT> goal_handle);
+  void                          handle_accepted(const std::shared_ptr<GoalHandleFFT> goal_handle);
+  rclcpp_action::GoalResponse   handle_goal(const rclcpp_action::GoalUUID & uuid,
+                                            std::shared_ptr<const FollowFormationTrajectory::Goal> goal);
+
   std::vector<std::string> m_joint_names;
-  std::string m_robot_description;
+  std::string              m_robot_description;
 
   std::string m_base_footprint  {"base_footprint"};
   std::string m_base_link       {"base_link"};
@@ -168,13 +182,6 @@ protected:
   std::unique_ptr<tf2_ros::TransformListener> m_tf_listener_ptr;
   std::unique_ptr<tf2_ros::Buffer> m_tf_buffer_ptr;
 
-//  std::vector<std::string> m_followers;
-//  std::unordered_map<std::string, Eigen::MatrixXd> m_flw_q;
-//  std::unordered_map<std::string, Eigen::MatrixXd> m_flw_dq;
-//  std::unordered_map<std::string, Eigen::MatrixXd> m_flw_ddq;
-//  std::unordered_map<std::string, rclcpp::Time> m_followers_last_message_stamp;
-//  std::unordered_map<std::string, Eigen::Isometry3d> m_follower_tool_in_leader_tool;
-
   bool m_is_omni {false};
 
   // MPC parameters
@@ -185,11 +192,8 @@ protected:
 
   // rdyn parameters
   Eigen::Vector3d m_gravity {0, 0, -9.80665};
-  rdyn::ChainPtr m_rdyn_full_chain;
-//  std::unordered_map<std::string, rdyn::ChainPtr> m_flw_rdyn_chain_map;
+  rdyn::ChainPtr  m_rdyn_full_chain;
 
-//  Eigen::Vector3d       m_cartesian_velocity_limit {0.0, 0.0, 0.0};
-//  Eigen::Vector3d       m_cartesian_rotation_velocity_limit {0.0,0.0,0.0};
 
   // HQP solution
   Eigen::VectorXd       m_solutions;
@@ -224,10 +228,6 @@ protected:
   Params m_params;
   void declare_parameters ();
   bool read_parameters    ();
-
-private:
-//  void updateFollowerTrjCallback(const trajectory_msgs::msg::JointTrajectory& msg, const std::string& name);
-//  void acquireFormation();
   void interpolate(const rclcpp::Time& t_t, const rclcpp::Time& t_start, Eigen::VectorXd& interp_vel, Eigen::Affine3d& out);
 };
 } // formation_mpc
