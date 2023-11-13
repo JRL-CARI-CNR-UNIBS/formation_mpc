@@ -37,7 +37,7 @@ find_package(task_math                  REQUIRED)
 
 
 generate_parameter_library(leader_mpc_parameters # cmake target name for the parameter library
-  config/parameters.yaml # path to input yaml file
+  config/parameters_definition.yaml # path to input yaml file
 )
 
 set(THIS_PACKAGE_LIBRARIES_DEPENDENCIES

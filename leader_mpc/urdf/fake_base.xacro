@@ -1,0 +1,34 @@
+<?xml version="1.0"?>
+
+<robot name="fake_base" xmlns:xacro="http://ros.org/wiki/xacro" xmlns:gz="http://gazebosim.org/schema">
+
+  <xacro:arg name="use_world" default="false"/>
+  <xacro:arg name="world_frame" default="map"/>
+  <xacro:arg name="prefix" default=""/>
+
+  <xacro:if value="$(arg use_world)">
+    <link name="$(arg world_frame)"/>
+  </xacro:if>
+
+  <link name="linear_x"/>
+  <link name="linear_y"/>
+  <link name="rotate_z"/>
+  <joint name="world_to_linear_x" type="prismatic">
+    <parent link="$(arg world_frame)"/>
+    <child link="linear_x"/>
+    <axis xyz="1 0 0"/>
+    <limit lower="-1000000" upper="1000000" effort="1000000" velocity="1000000"/>
+  </joint>
+  <joint name="linear_x_to_linear_y" type="prismatic">
+    <parent link="linear_x"/>
+    <child link="linear_y"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="-1000000" upper="1000000" effort="1000000" velocity="1000000"/>
+  </joint>
+  <joint name="linear_y_to_rotate_z" type="continuous">
+    <parent link="linear_y"/>
+    <child link="rotate_z"/>
+    <axis xyz="0 0 1"/>
+    <limit effort="1000000" velocity="1000000"/>
+  </joint>
+</robot>
