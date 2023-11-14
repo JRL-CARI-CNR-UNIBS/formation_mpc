@@ -27,9 +27,7 @@
 //#include "realtime_tools/realtime_buffer.h"
 //#include "realtime_tools/realtime_publisher.h"
 
-#include "nav2_core/controller.hpp"
-
-#include <hardware_interface/types/hardware_interface_type_values.hpp>
+//#include <hardware_interface/types/hardware_interface_type_values.hpp>
 
 #include <task_math/task_math.h>
 #include <task_math/common_limits.h>
@@ -47,16 +45,14 @@
 
 // msg, srv, action
 #include <std_msgs/msg/string.hpp>
-#include <geometry_msgs/msg/twist.hpp>
+#include <geometry_msgs/msg/twist_stamped.hpp>
 #include <trajectory_msgs/msg/multi_dof_joint_trajectory.hpp>
 #include <trajectory_msgs/msg/multi_dof_joint_trajectory_point.hpp>
-#include <nav_msgs/msg/path.hpp>
+//#include <nav_msgs/msg/path.hpp>
 #include <sensor_msgs/msg/joint_state.hpp>
 
 #include "formation_msgs/msg/trj_optim_results.hpp"
 #include "formation_msgs/action/follow_formation_leader_trajectory.hpp"
-
-#include "subscription_notifier/subscription_notifier.h"
 
 #include "leader_mpc_parameters.hpp"
 
@@ -69,13 +65,14 @@ namespace formation_mpc
   using CallbackReturn = rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn;
   using namespace std::placeholders;
   constexpr double k_task_level_multiplier = 1e-3;
+
 class LeaderMPC : public rclcpp_lifecycle::LifecycleNode // FIXME: ros2_controller or nav2_controller or moveit_local_planner
 {
 public: 
   using FollowFormationTrajectory = formation_msgs::action::FollowFormationLeaderTrajectory;
   using GoalHandleFFT = rclcpp_action::ServerGoalHandle<FollowFormationTrajectory>;
 
-  LeaderMPC(const std::string& name, const rclcpp::NodeOptions& options);
+  LeaderMPC(const std::string name, const rclcpp::NodeOptions options = rclcpp::NodeOptions());
 
   geometry_msgs::msg::TwistStamped compute_velocity_command();
 
@@ -87,9 +84,9 @@ public:
   CallbackReturn on_configure (const rclcpp_lifecycle::State& /*state*/) override;
   CallbackReturn on_activate  (const rclcpp_lifecycle::State& /*state*/) override;
   CallbackReturn on_deactivate(const rclcpp_lifecycle::State& /*state*/) override;
-  CallbackReturn on_cleanup   (const rclcpp_lifecycle::State& /*state*/) override;
-  CallbackReturn on_error     (const rclcpp_lifecycle::State& /*state*/) override;
-  CallbackReturn on_shutdown  (const rclcpp_lifecycle::State& /*state*/) override;
+  // CallbackReturn on_cleanup   (const rclcpp_lifecycle::State& /*state*/) override;
+  // CallbackReturn on_error     (const rclcpp_lifecycle::State& /*state*/) override;
+  // CallbackReturn on_shutdown  (const rclcpp_lifecycle::State& /*state*/) override;
   void reset     ();
 
   void update(const std::shared_ptr<GoalHandleFFT> goal_handle);

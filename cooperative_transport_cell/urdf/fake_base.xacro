@@ -1,0 +1,10 @@
+<?xml version="1.0"?>
+
+<robot name="mobile_manipulator" xmlns:xacro="http://ros.org/wiki/xacro" xmlns:gz="http://gazebosim.org/schema">
+  <xacro:arg name="prefix"             default=""/>
+  <xacro:arg name="world_frame"        default="map"/>
+  <xacro:arg name="create_world_frame" default="true"/>
+
+  <xacro:include filename="$(find cooperative_transport_cell)/urdf/fake_base.macro.xacro"/>
+  <xacro:fake_base_macro prefix="$(arg prefix)" world_frame="$(arg world_frame)" create_world="$(arg create_world_frame)"/>
+</robot>

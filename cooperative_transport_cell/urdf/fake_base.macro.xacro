@@ -1,0 +1,67 @@
+<?xml version="1.0"?>
+
+<robot name="fake_base" xmlns:xacro="http://ros.org/wiki/xacro" xmlns:gz="http://gazebosim.org/schema">
+<xacro:macro name="fake_base_macro" params="prefix
+                                            world_frame 
+                                            create_world:=false
+                                            use_ros2_control:=true">
+
+  <xacro:if value="${create_world}">
+    <link name="${world_frame}"/>
+  </xacro:if>
+
+  <link name="${prefix}linear_x"/>
+  <link name="${prefix}linear_y"/>
+  <link name="${prefix}rotate_z"/>
+  <link name="${prefix}mount_frame"/>
+  <joint name="${prefix}joint_x" type="prismatic">
+    <parent link="${world_frame}"/>
+    <child  link="${prefix}linear_x"/>
+    <axis xyz="1 0 0"/>
+    <limit lower="-1000000" upper="1000000" effort="1000000" velocity="1000000"/>
+  </joint>
+  <joint name="${prefix}joint_y" type="prismatic">
+    <parent link="${prefix}linear_x"/>
+    <child  link="${prefix}linear_y"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="-1000000" upper="1000000" effort="1000000" velocity="1000000"/>
+  </joint>
+  <joint name="${prefix}joint_rz" type="continuous">
+    <parent link="${prefix}linear_y"/>
+    <child  link="${prefix}rotate_z"/>
+    <axis xyz="0 0 1"/>
+    <limit effort="1000000" velocity="1000000"/>
+  </joint>
+  <joint name="${prefix}to_mount_frame" type="fixed">
+    <parent link="${prefix}rotate_z"/>
+    <child  link="${prefix}mount_frame"/>
+  </joint>
+
+  <xacro:if value="${use_ros2_control}">
+    <ros2_control name="${prefix}fake_base" type="system">
+      <hardware>
+        <plugin>mock_components/GenericSystem</plugin>
+      </hardware>
+      <joint name="${prefix}joint_x">
+        <command_interface name="position"/>
+        <command_interface name="velocity"/>
+        <state_interface name="position"/>
+        <state_interface name="velocity"/>
+      </joint>
+      <joint name="${prefix}joint_y">
+        <command_interface name="position"/>
+        <command_interface name="velocity"/>
+        <state_interface name="position"/>
+        <state_interface name="velocity"/>
+      </joint>
+      <joint name="${prefix}joint_rz">
+        <command_interface name="position"/>
+        <command_interface name="velocity"/>
+        <state_interface name="position"/>
+        <state_interface name="velocity"/>
+      </joint>
+    </ros2_control>
+  </xacro:if>
+
+</xacro:macro>
+</robot>

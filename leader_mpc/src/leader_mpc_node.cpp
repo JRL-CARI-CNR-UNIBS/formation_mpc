@@ -5,7 +5,8 @@
 int main(int argc, char** argv)
 {
   rclcpp::init(argc, argv);
-  std::shared_ptr<formation_mpc::LeaderMPC> leader_node = std::make_shared<formation_mpc::LeaderMPC>("leader");
+  std::shared_ptr<formation_mpc::LeaderMPC> leader_node = std::make_shared<formation_mpc::LeaderMPC>("leader_mpc_node");
+  RCLCPP_WARN(leader_node->get_logger(), "Node object ==> constructed");
   rclcpp::executors::SingleThreadedExecutor exe;
   exe.add_node(leader_node->get_node_base_interface());
   exe.spin();

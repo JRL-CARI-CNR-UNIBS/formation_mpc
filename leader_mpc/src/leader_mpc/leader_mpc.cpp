@@ -1,49 +1,43 @@
 #include "leader_mpc/leader_mpc.hpp"
 
-//std::array<Eigen::MatrixXd, 3> jointTrjToEigen(const trajectory_msgs::msg::JointTrajectory& msg)
-//{
-//  std::array<Eigen::MatrixXd, 3> trj;
-//  Eigen::MatrixXd trj_mat(msg.joint_names.size(), msg.points.size());
-//  for(size_t idx {0}; idx < msg.joint_names.size(); ++idx)
-//  {
-//    trj_mat.col(idx) = Eigen::VectorXd::Map(&(msg.points.at(idx).positions[0]), msg.points.at(idx).positions.size());
-//  }
-//  trj.at(0) = trj_mat;
-//  trj_mat = Eigen::MatrixXd::Zero(msg.joint_names.size(), msg.points.size());
-//  for(size_t idx {0}; idx < msg.joint_names.size(); ++idx)
-//  {
-//    trj_mat.col(idx) = Eigen::VectorXd::Map(&(msg.points.at(idx).velocities[0]), msg.points.at(idx).velocities.size());
-//  }
-//  trj.at(1) = trj_mat;
-//  trj_mat = Eigen::MatrixXd::Zero(msg.joint_names.size(), msg.points.size());
-//  for(size_t idx {0}; idx < msg.joint_names.size(); ++idx)
-//  {
-//    trj_mat.col(idx) = Eigen::VectorXd::Map(&(msg.points.at(idx).accelerations[0]), msg.points.at(idx).accelerations.size());
-//  }
-//  trj.at(2) = trj_mat;
-//  return trj;
-//}
+#include <ament_index_cpp/get_package_share_directory.hpp>
 
 namespace formation_mpc {
-LeaderMPC::LeaderMPC(const std::string& name, const rclcpp::NodeOptions& options = rclcpp::NodeOptions())
+LeaderMPC::LeaderMPC(const std::string name, const rclcpp::NodeOptions options)
   : rclcpp_lifecycle::LifecycleNode(name, options)
 {
-  init();
+  #ifdef DEBUG_ON
+  #include "rcutils/error_handling.h"
+  if(rcutils_logging_set_logger_level(this->get_logger().get_name(), RCUTILS_LOG_SEVERITY_DEBUG))
+  {
+    RCLCPP_ERROR(this->get_logger(), "Cannot set logger severity to DEBUG, using default");
+  }
+  else
+  {
+    RCLCPP_DEBUG(this->get_logger(), "Enable DEBUG logging");
+  }
+  #endif
 }
 
 void LeaderMPC::declare_parameters()
 {
   m_param_listener = std::make_shared<ParamListener>(this->shared_from_this());
+  RCLCPP_DEBUG(this->get_logger(), "Parameter declared");
 }
 
 bool LeaderMPC::read_parameters()
 {
   if(!m_param_listener)
   {
-    RCLCPP_ERROR(this->get_logger(), "Error econuntered during init");
+    RCLCPP_ERROR(this->get_logger(), "Error encountered during init");
     return false;
   }
   m_params = m_param_listener->get_params();
+  if(m_params.__stamp == rclcpp::Time(0.0))
+  {
+    RCLCPP_ERROR(this->get_logger(), "Parameters not loaded");
+    return false;
+  }
   return true;
 
 }
@@ -65,23 +59,15 @@ bool LeaderMPC::init()
 
  CallbackReturn LeaderMPC::on_configure(const rclcpp_lifecycle::State& /*state*/)
 {
+  init();
   m_tf_buffer_ptr = std::make_unique<tf2_ros::Buffer>(this->get_clock());
   m_tf_listener_ptr = std::make_unique<tf2_ros::TransformListener>(*m_tf_buffer_ptr);
-  if (this->read_parameters()) {
+  if (!this->read_parameters()) {
     RCLCPP_ERROR(this->get_logger(), "Error while reading parameters");
     return CallbackReturn::ERROR;
   }; //TODO: boh...
 
-  auto robot_description__sub = this->create_subscription<std_msgs::msg::String>(
-    m_params.robot_description_topic, rclcpp::QoS(rclcpp::KeepLast(1)).transient_local().reliable(),
-    [this](std_msgs::msg::String::SharedPtr msg) { m_robot_description = msg->data; });
-
-  while(m_robot_description == "")
-  {
-    RCLCPP_ERROR_STREAM(this->get_logger(), "robot_description_msg " << m_robot_description);
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
-  }
-  RCLCPP_DEBUG(this->get_logger(), "Robot description: OK");
+  m_robot_description = m_params.robot_description;
 
   // rdyn
   urdf::Model urdf_model;
@@ -90,14 +76,14 @@ bool LeaderMPC::init()
     RCLCPP_ERROR_STREAM(this->get_logger(), "robot description cannot be parsed");
     return CallbackReturn::ERROR;
   }
-  if(urdf_model.getLink(m_params.base_footprint) == nullptr)
+  if(urdf_model.getLink(m_params.mobile_base_link) == nullptr)
   {
-    RCLCPP_ERROR_STREAM(this->get_logger(), m_params.base_footprint << " is missing from robot description");
+    RCLCPP_ERROR_STREAM(this->get_logger(), m_params.mobile_base_link << " is missing from robot description");
     return CallbackReturn::ERROR;
   }
-  if(urdf_model.getLink(m_params.base_link) == nullptr)
+  if(urdf_model.getLink(m_params.manipulator_base_link) == nullptr)
   {
-    RCLCPP_ERROR_STREAM(this->get_logger(), m_params.base_link << " is missing from robot description");
+    RCLCPP_ERROR_STREAM(this->get_logger(), m_params.manipulator_base_link << " is missing from robot description");
     return CallbackReturn::ERROR;
   }
   if(urdf_model.getLink(m_params.tool_frame) == nullptr)
@@ -107,23 +93,33 @@ bool LeaderMPC::init()
   }
 
   rdyn::ChainPtr rdyn_fixed_chain = std::make_shared<rdyn::Chain>(urdf_model,
-                                                     m_params.base_footprint,
+                                                     m_params.mobile_base_link,
                                                      m_params.tool_frame,
                                                      m_gravity);
 
   urdf::Model fake_mobile_urdf;
-  if(!fake_mobile_urdf.initFile(FAKE_MOBILE_BASE_PATH))
+  std::string fake_base_pkg_dir;
+  try
   {
-    RCLCPP_ERROR(this->get_logger(), "fake base urdf file not found");
+    fake_base_pkg_dir = ament_index_cpp::get_package_share_directory(m_params.fake_base.package);
+  }
+  catch(...)
+  {
+    RCLCPP_ERROR(this->get_logger(), "Cannot find package %s. Exiting...", m_params.fake_base.package.c_str());
+    return CallbackReturn::ERROR;
+  }
+  if(!fake_mobile_urdf.initFile(fake_base_pkg_dir + "/" + m_params.fake_base.path))
+  {
+    RCLCPP_ERROR(this->get_logger(), "Cannot read fake base urdf in %s/%s", fake_base_pkg_dir.c_str(), m_params.fake_base.path.c_str());
     return CallbackReturn::ERROR;
   }
   m_nax_arm = rdyn_fixed_chain->getActiveJointsNumber();
   rdyn::ChainPtr rdyn_fake_mobile_chain = std::make_shared<rdyn::Chain>(fake_mobile_urdf,
                                                          m_params.map_frame,
-                                                         "mount_link", // TODO: parameter? constant?
+                                                         m_params.mount_frame, // TODO: parameter? constant?
                                                          m_gravity);
   m_nax_base = rdyn_fake_mobile_chain->getActiveJointsNumber();
-  m_rdyn_full_chain = rdyn::mergeChains(rdyn_fake_mobile_chain, rdyn_fixed_chain);
+  m_rdyn_full_chain = rdyn::joinChains(rdyn_fake_mobile_chain, rdyn_fixed_chain);
 
   std::string e;
   // FIXME: ricontrolla a cosa serve rdyn::chain->setInputJointsName
@@ -238,7 +234,7 @@ void LeaderMPC::set_plan(const trajectory_msgs::msg::MultiDOFJointTrajectory& tr
   m_plan.resize(size);
   for(size_t idx = 0; idx < size; ++idx)
   {
-    tf2::fromMsg(trj.points.at(idx).transforms.at(0), m_plan.pose.at(idx));
+    m_plan.pose.at(idx) = tf2::transformToEigen(trj.points.at(idx).transforms.at(0));
     tf2::fromMsg(trj.points.at(idx).velocities.at(0), m_plan.twist.at(idx));
     tf2::fromMsg(trj.points.at(idx).accelerations.at(0), m_plan.acc.at(idx));
     m_plan.time.at(idx) = rclcpp::Time(trj.points.at(idx).time_from_start.sec,
@@ -337,9 +333,10 @@ void loop()
 
 void LeaderMPC::interpolate(const rclcpp::Time& t_t, const rclcpp::Time& t_start, Eigen::VectorXd& interp_vel, Eigen::Affine3d& out)
 {
+  rclcpp::Duration T = t_t - t_start;
   for(size_t idx = 1; idx < m_plan.time.size(); idx++)
   {
-    rclcpp::Time t_start = rclcpp::Time(t_t);
+    rclcpp::Time t_start = rclcpp::Time(T.seconds());
     if(!(    ((t_start - m_plan.time.at(idx)).seconds() < 0)
           && ((t_start - m_plan.time.at(idx-1)).seconds() >= 0)
          )
@@ -413,7 +410,7 @@ void LeaderMPC::update(const std::shared_ptr<GoalHandleFFT> goal_handle)
   Eigen::Affine3d actual_pose;
   while(!m_tf_buffer_ptr->canTransform(m_tool_frame, m_map_frame, t_start, 10s)) this->get_clock()->sleep_for(10ms);
   geometry_msgs::msg::TransformStamped msg = m_tf_buffer_ptr->lookupTransform(m_tool_frame, m_map_frame, t_start);
-  tf2::fromMsg(msg, actual_pose);
+  actual_pose = tf2::transformToEigen(msg);
   std::shared_ptr<FollowFormationTrajectory::Result> result = std::make_shared<FollowFormationTrajectory::Result>();
   std::shared_ptr<FollowFormationTrajectory::Feedback> feedback = std::make_shared<FollowFormationTrajectory::Feedback>();
   t_start = this->get_clock()->now();
@@ -439,7 +436,7 @@ void LeaderMPC::update(const std::shared_ptr<GoalHandleFFT> goal_handle)
   {
     result->error = 0;
     goal_handle->succeed(result);
-    RCLCPP_INFO(this->get_logger(), "");
+    RCLCPP_INFO(this->get_logger(), "Plan executed correctly");
   }
 }
 

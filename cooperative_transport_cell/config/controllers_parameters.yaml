@@ -1,0 +1,26 @@
+# This config file is used by ros2_control
+controller_manager:
+  ros__parameters:
+    update_rate: 100  # Hz
+
+    fake_imm_controller:
+      type: joint_trajectory_controller/JointTrajectoryController
+
+fake_imm_controller:
+  ros__parameters:
+    joints:
+      - joint_x
+      - joint_y
+      - joint_rz
+      - ur/shoulder_pan_joint
+      - ur/shoulder_lift_joint
+      - ur/elbow_joint
+      - ur/wrist_1_joint
+      - ur/wrist_2_joint
+      - ur/wrist_3_joint
+    command_interfaces:
+      - position
+      - velocity
+    state_interfaces:
+      - position
+      - velocity

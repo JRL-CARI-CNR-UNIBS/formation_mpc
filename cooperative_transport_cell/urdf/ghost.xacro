@@ -1,0 +1,50 @@
+<?xml version="1.0"?>
+
+<robot name="mobile_manipulator" xmlns:xacro="http://ros.org/wiki/xacro" xmlns:gz="http://gazebosim.org/schema">
+  <xacro:arg name="prefix"             default="ghost/"/>
+  <xacro:arg name="world_frame"        default="map"/>
+  <xacro:arg name="create_world_frame" default="false"/>
+
+  <!-- <xacro:include file="$(find cooperative_transport_cell)/urdf/fake_base.xacro"/>
+  <xacro:fake_base_macro prefix="$(arg prefix)" world_frame="$(arg world_frame)" create_world="$(arg create_world_frame)"/> -->
+  <xacro:if value="$(arg create_world_frame)">
+    <link name="$(arg world_frame)"/>
+  </xacro:if>
+
+  <link name="$(arg prefix)ghost_linear_x"/>
+  <link name="$(arg prefix)ghost_linear_y"/>
+  <link name="$(arg prefix)ghost_linear_z"/>
+
+  <link name="$(arg prefix)ghost_base">
+    <visual>
+      <geometry>
+        <box size="1.0 2.0 0.2"/>
+      </geometry>
+    </visual>
+  </link>
+  <joint name="$(arg prefix)to_ghost_frame_x" type="prismatic">
+    <parent link="$(arg world_frame)"/>
+    <child  link="$(arg prefix)ghost_linear_x"/>
+    <axis xyz="1 0 0"/>
+    <limit lower="-1000000" upper="1000000" effort="1000000" velocity="1000000"/>
+  </joint>
+
+  <joint name="$(arg prefix)to_ghost_frame_y" type="prismatic">
+    <parent link="$(arg prefix)ghost_linear_x"/>
+    <child  link="$(arg prefix)ghost_linear_y"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="-1000000" upper="1000000" effort="1000000" velocity="1000000"/>
+  </joint>
+
+  <joint name="$(arg prefix)to_ghost_frame_z" type="prismatic">
+    <parent link="$(arg prefix)ghost_linear_y"/>
+    <child  link="$(arg prefix)ghost_linear_z"/>
+    <axis xyz="0 0 1"/>
+    <limit lower="-1000000" upper="1000000" effort="1000000" velocity="1000000"/>
+  </joint>
+
+  <joint name="$(arg prefix)to_ghost_frame" type="fixed">
+    <parent link="$(arg prefix)ghost_linear_z"/>
+    <child  link="$(arg prefix)ghost_base"/>
+  </joint>
+</robot>

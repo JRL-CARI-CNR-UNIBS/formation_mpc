@@ -1,44 +1,52 @@
-leeader_mpc:
-  leader:
-    ros__parameters:
-      control_horizon: 1
-      prediction_horizon: 5
-      dt: 0.1
-      formation_dt: 0.1
-      click_gain: 1
-      leader_ns: "sweepee_1"
-      is_omni: false
-      base_footprint: "base_footprint"
-      base_link:  "base_link"
-      tool_frame: "tool0"
-      map_frame: "map"
-      joints:
-        - "movex"
-        - "movey"
-        - "moverz"
-        - "joint1"
-        - "joint2"
-        - "joint3"
-        - "joint4"
-        - "joint5"
-        - "joint6"
-      command_joints:
-        - "joint1"
-        - "joint2"
-        - "joint3"
-        - "joint4"
-        - "joint5"
-        - "joint6"
-      control_interface:
-        - ""
-      state_interface:
-        - ""
-      robot_description_topic: "robot_description"
-      cmd_vel_topic: "cmd_vel"
-      scaling:
-        active: true
-        limit: 2
-      fake_base_urdf: ""
-      hierarchy: [1,2,3]
-      trj_leader_topic: "trj_share"
-      plan_topic: "/plan"
+leader_mpc_node: # TODO: guarda ??
+  ros__parameters:
+    control_horizon: 1
+    prediction_horizon: 5
+    dt: 0.1
+    formation_dt: 0.1
+    click_gain: 1
+    leader_ns: "sweepee_1"
+    is_omni: false
+    mobile_base_link: "base_link"
+    manipulator_base_link: "ur/base_link"
+    tool_frame: "ur/tool0"
+    map_frame: "map"
+    mount_frame: "base_link"
+    joints: # ??
+      - "joint_x"
+      - "joint_y"
+      - "joint_rz"
+      - "ur/shoulder_pan_joint"
+      - "ur/shoulder_lift_joint"
+      - "ur/elbow_joint"
+      - "ur/wrist_1_joint"
+      - "ur/wrist_2_joint"
+      - "ur/wrist_3_joint"
+    command_joints: # ??
+      - "joint_x"
+      - "joint_y"
+      - "joint_rz"
+      - "ur/shoulder_pan_joint"
+      - "ur/shoulder_lift_joint"
+      - "ur/elbow_joint"
+      - "ur/wrist_1_joint"
+      - "ur/wrist_2_joint"
+      - "ur/wrist_3_joint"
+    control_interface: # ??
+      - ""
+    state_interface: # ??
+      - ""
+    # robot_description_topic: "robot_description"
+    # robot_description: ## from launcher
+    cmd_vel_topic: "cmd_vel"
+    # cmd_trj_topic: ## default
+    scaling:
+      active: true
+      limit: 2.0
+    hierarchy: [1,2,3]
+    trj_leader_topic: "trj_share"
+    plan_topic: "/plan"
+    base_max_vel: [2.0, 2.0, 2.0, 5.0, 5.0, 5.0]
+    fake_base:
+      package: "cooperative_transport_cell"
+      path: "urdf/fake_base.urdf"

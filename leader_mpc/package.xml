@@ -21,7 +21,6 @@
   <depend>realtime_tools          </depend>
   <depend>tf2_ros                 </depend>
   <depend>tf2_eigen               </depend>
-  <depend>subscription_notifier   </depend>
   <depend>Eigen3                  </depend>
 
 
@@ -32,6 +31,6 @@
 
   <export>
     <build_type>ament_cmake</build_type>
-    <nav2_core plugin="${prefix}/controller_plugin.xml" />
+<!--    <nav2_core plugin="${prefix}/controller_plugin.xml" />-->
   </export>
 </package>

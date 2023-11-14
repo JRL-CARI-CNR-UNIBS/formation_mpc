@@ -46,12 +46,12 @@ formation_mpc: # defined per generate_parameter_library
     default_value: true,
     description: "[NOT IMPLEMENTED] is the robot omnidirectional?"
   }
-  base_footprint: {
+  mobile_base_link: {
     type: string,
     default_value: "/base_footprint",
     description: "refered to the mobile base"
   }
-  base_link: {
+  manipulator_base_link: {
     type: string,
     default_value: "/base_link",
     description: "manipulator base"
@@ -65,6 +65,16 @@ formation_mpc: # defined per generate_parameter_library
     type: string,
     default_value: "map",
     description: "map/world reference frame"
+  }
+  mount_frame: {
+    type: string,
+    default_value: "base_link",
+    description: "link to attach the fake_base"
+  }
+  robot_description: {
+    type: string,
+    default_value: "",
+    description: "Robot description"
   }
   joints: {
     type: string_array,
@@ -86,11 +96,11 @@ formation_mpc: # defined per generate_parameter_library
     default_value: [],
     description: "Names of the state_interface",
   }
-  robot_description_topic: {
-    type: string,
-    default_value: "robot_description",
-    description: "Name of the robot description topic",
-  }
+  # robot_description_topic: {
+  #   type: string,
+  #   default_value: "robot_description",
+  #   description: "Name of the robot description topic",
+  # }
   cmd_vel_topic: {
     type: string,
     default_value: "cmd_vel",
@@ -115,11 +125,6 @@ formation_mpc: # defined per generate_parameter_library
         lt_eq<>: 2.0
       }
     }
-  fake_base_urdf: { # Not implemented
-    type: string,
-    default_value: "fake_base.urdf",
-    description: "[NOT IMPLEMENTED] URDF file representing the 3 dof base movements: X,Y,rot(Z)"
-  }
   hierarchy: {
     type: int_array,
     default_value: [1,2,3],
@@ -149,3 +154,14 @@ formation_mpc: # defined per generate_parameter_library
       lower_element_bounds<>: 0.0
     }
   }
+  fake_base:
+    package: {
+      type: string,
+      default_value: "",
+      description: "Package inside which there is the xacro"
+    }
+    path: {
+      type: string,
+      default_value: "",
+      description: "Relative path to xacro from <package>/share/"
+    }
