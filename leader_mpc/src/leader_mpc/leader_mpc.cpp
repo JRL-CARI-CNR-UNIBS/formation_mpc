@@ -114,9 +114,13 @@ bool LeaderMPC::init()
     return CallbackReturn::ERROR;
   }
   m_nax_arm = rdyn_fixed_chain->getActiveJointsNumber();
-  rdyn::ChainPtr rdyn_fake_mobile_chain = std::make_shared<rdyn::Chain>(fake_mobile_urdf,
+//  rdyn::ChainPtr rdyn_fake_mobile_chain = std::make_shared<rdyn::Chain>(fake_mobile_urdf,
+//                                                         m_params.map_frame,
+//                                                         m_params.mount_frame,
+//                                                         m_gravity);
+  rdyn::ChainPtr rdyn_fake_mobile_chain = rdyn::createChain(fake_mobile_urdf,
                                                          m_params.map_frame,
-                                                         m_params.mount_frame, // TODO: parameter? constant?
+                                                         m_params.mount_frame,
                                                          m_gravity);
   m_nax_base = rdyn_fake_mobile_chain->getActiveJointsNumber();
   m_rdyn_full_chain = rdyn::joinChains(rdyn_fake_mobile_chain, rdyn_fixed_chain);

@@ -11,7 +11,7 @@ leader_mpc_node: # TODO: guarda ??
     manipulator_base_link: "ur/base_link"
     tool_frame: "ur/tool0"
     map_frame: "map"
-    mount_frame: "base_link"
+    mount_frame: "mount_frame"
     joints: # ??
       - "joint_x"
       - "joint_y"
