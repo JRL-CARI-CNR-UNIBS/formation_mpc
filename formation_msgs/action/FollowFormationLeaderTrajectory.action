@@ -1,4 +1,4 @@
-trajectory_msgs/MultiDOFJointTrajectory payload_cartesian_trajectory
+moveit_msgs/CartesianTrajectory payload_cartesian_trajectory
 
 ---
 int32 error
@@ -6,5 +6,4 @@ int32 error
 std_msgs/Header header
 string[] joint_names
 
-trajectory_msgs/JointTrajectoryPoint desired
-trajectory_msgs/JointTrajectoryPoint actual
+trajectory_msgs/JointTrajectoryPoint joints

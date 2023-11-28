@@ -1,6 +1,6 @@
 leader_mpc_node: # TODO: guarda ??
   ros__parameters:
-    control_horizon: 1
+    control_horizon: 2
     prediction_horizon: 5
     dt: 0.1
     formation_dt: 0.1
@@ -22,6 +22,16 @@ leader_mpc_node: # TODO: guarda ??
       - "ur/wrist_1_joint"
       - "ur/wrist_2_joint"
       - "ur/wrist_3_joint"
+    initial_positions:
+      - 0.0
+      - 0.0
+      - 0.0
+      - 0.0
+      - -2.356
+      - 1.57
+      - 0.0
+      - 0.0
+      - 0.0
     command_joints: # ??
       - "joint_x"
       - "joint_y"

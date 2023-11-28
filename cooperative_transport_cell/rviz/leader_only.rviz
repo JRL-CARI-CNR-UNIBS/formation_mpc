@@ -61,61 +61,6 @@ Visualization Manager:
         Value: /robot_description
       Enabled: true
       Links:
-        /ur/base:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-        /ur/base_link:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-        /ur/base_link_inertia:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-          Value: true
-        /ur/flange:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-        /ur/forearm_link:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-          Value: true
-        /ur/ft_frame:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-        /ur/shoulder_link:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-          Value: true
-        /ur/tool0:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-        /ur/upper_arm_link:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-          Value: true
-        /ur/wrist_1_link:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-          Value: true
-        /ur/wrist_2_link:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-          Value: true
-        /ur/wrist_3_link:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-          Value: true
         All Links Enabled:
           {}
         Expand Joint Details: false
@@ -151,6 +96,61 @@ Visualization Manager:
           Alpha: 1
           Show Axes: false
           Show Trail: false
+        ur/base:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+        ur/base_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+        ur/base_link_inertia:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        ur/flange:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+        ur/forearm_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        ur/ft_frame:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+        ur/shoulder_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        ur/tool0:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+        ur/upper_arm_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        ur/wrist_1_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        ur/wrist_2_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        ur/wrist_3_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
       Mass Properties:
         Inertia: false
         Mass: false
@@ -159,6 +159,159 @@ Visualization Manager:
       Update Interval: 0
       Value: true
       Visual Enabled: true
+    - Class: rviz_default_plugins/TF
+      Enabled: true
+      Frame Timeout: 15
+      Frames:
+        All Enabled: true
+        base_connection:
+          Value: true
+        base_link:
+          Value: true
+        base_link_0:
+          Value: true
+        base_link_1:
+          Value: true
+        base_link_10:
+          Value: true
+        base_link_11:
+          Value: true
+        base_link_12:
+          Value: true
+        base_link_13:
+          Value: true
+        base_link_14:
+          Value: true
+        base_link_15:
+          Value: true
+        base_link_16:
+          Value: true
+        base_link_17:
+          Value: true
+        base_link_18:
+          Value: true
+        base_link_19:
+          Value: true
+        base_link_2:
+          Value: true
+        base_link_3:
+          Value: true
+        base_link_4:
+          Value: true
+        base_link_5:
+          Value: true
+        base_link_6:
+          Value: true
+        base_link_7:
+          Value: true
+        base_link_8:
+          Value: true
+        base_link_9:
+          Value: true
+        linear_x:
+          Value: true
+        linear_y:
+          Value: true
+        map:
+          Value: true
+        mount_frame:
+          Value: true
+        rotate_z:
+          Value: true
+        ur/base:
+          Value: true
+        ur/base_link:
+          Value: true
+        ur/base_link_inertia:
+          Value: true
+        ur/flange:
+          Value: true
+        ur/forearm_link:
+          Value: true
+        ur/ft_frame:
+          Value: true
+        ur/shoulder_link:
+          Value: true
+        ur/tool0:
+          Value: true
+        ur/upper_arm_link:
+          Value: true
+        ur/wrist_1_link:
+          Value: true
+        ur/wrist_2_link:
+          Value: true
+        ur/wrist_3_link:
+          Value: true
+      Marker Scale: 1
+      Name: TF
+      Show Arrows: true
+      Show Axes: true
+      Show Names: false
+      Tree:
+        map:
+          base_link_0:
+            {}
+          base_link_1:
+            {}
+          base_link_10:
+            {}
+          base_link_11:
+            {}
+          base_link_12:
+            {}
+          base_link_13:
+            {}
+          base_link_14:
+            {}
+          base_link_15:
+            {}
+          base_link_16:
+            {}
+          base_link_17:
+            {}
+          base_link_18:
+            {}
+          base_link_19:
+            {}
+          base_link_2:
+            {}
+          base_link_3:
+            {}
+          base_link_4:
+            {}
+          base_link_5:
+            {}
+          base_link_6:
+            {}
+          base_link_7:
+            {}
+          base_link_8:
+            {}
+          base_link_9:
+            {}
+          linear_x:
+            linear_y:
+              rotate_z:
+                mount_frame:
+                  base_link:
+                    base_connection:
+                      ur/base_link:
+                        ur/base:
+                          {}
+                        ur/base_link_inertia:
+                          ur/shoulder_link:
+                            ur/upper_arm_link:
+                              ur/forearm_link:
+                                ur/wrist_1_link:
+                                  ur/wrist_2_link:
+                                    ur/wrist_3_link:
+                                      ur/flange:
+                                        ur/tool0:
+                                          {}
+                                      ur/ft_frame:
+                                        {}
+      Update Interval: 0
+      Value: true
   Enabled: true
   Global Options:
     Background Color: 48; 48; 48
@@ -205,7 +358,7 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz_default_plugins/Orbit
-      Distance: 10
+      Distance: 5.355762004852295
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
@@ -220,10 +373,10 @@ Visualization Manager:
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.8403981924057007
+      Pitch: 0.690398097038269
       Target Frame: <Fixed Frame>
       Value: Orbit (rviz)
-      Yaw: 0.9653980731964111
+      Yaw: 2.495403289794922
     Saved: ~
 Window Geometry:
   Displays:

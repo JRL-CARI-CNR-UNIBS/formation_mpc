@@ -15,7 +15,7 @@ formation_mpc: # defined per generate_parameter_library
   }
   dt: {
     type: double,
-    default_value: 0.1,
+    default_value: 0.01,
     description: "Controller sampling time in seconds",
     validation: {
       gt<>: 0.0
@@ -81,6 +81,14 @@ formation_mpc: # defined per generate_parameter_library
     default_value: [],
     description: "Name of the joints to control"
   }
+  initial_positions: {
+    type: double_array,
+    default_value: [],
+    description: "",
+    validation: {
+      not_empty<>: null
+    }
+  }
   command_joints: {
     type: string_array,
     default_value: [],
@@ -96,11 +104,6 @@ formation_mpc: # defined per generate_parameter_library
     default_value: [],
     description: "Names of the state_interface",
   }
-  # robot_description_topic: {
-  #   type: string,
-  #   default_value: "robot_description",
-  #   description: "Name of the robot description topic",
-  # }
   cmd_vel_topic: {
     type: string,
     default_value: "cmd_vel",

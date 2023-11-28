@@ -19,6 +19,7 @@ find_package(trajectory_msgs            REQUIRED)
 find_package(formation_msgs             REQUIRED)
 find_package(sensor_msgs                REQUIRED)
 find_package(map_msgs                   REQUIRED)
+find_package(moveit_msgs                   REQUIRED)
 ## tf2
 find_package(tf2_ros                    REQUIRED)
 find_package(tf2_eigen                  REQUIRED)
@@ -47,6 +48,7 @@ set(THIS_PACKAGE_LIBRARIES_DEPENDENCIES
   sensor_msgs
   map_msgs
   formation_msgs
+  moveit_msgs
   task_math
   tf2_ros
   tf2_eigen

@@ -46,8 +46,9 @@
 // msg, srv, action
 #include <std_msgs/msg/string.hpp>
 #include <geometry_msgs/msg/twist_stamped.hpp>
-#include <trajectory_msgs/msg/multi_dof_joint_trajectory.hpp>
-#include <trajectory_msgs/msg/multi_dof_joint_trajectory_point.hpp>
+#include <moveit_msgs/msg/cartesian_trajectory.hpp>
+//#include <trajectory_msgs/msg/multi_dof_joint_trajectory.hpp>
+//#include <trajectory_msgs/msg/multi_dof_joint_trajectory_point.hpp>
 //#include <nav_msgs/msg/path.hpp>
 #include <sensor_msgs/msg/joint_state.hpp>
 
@@ -76,7 +77,7 @@ public:
 
   geometry_msgs::msg::TwistStamped compute_velocity_command();
 
-  void set_plan(const trajectory_msgs::msg::MultiDOFJointTrajectory& trj);
+  void set_plan(const moveit_msgs::msg::CartesianTrajectory& trj);
 
   void set_speed_limit(const double & speed_limit, const bool & percentage);
 
@@ -140,9 +141,9 @@ protected:
 
   Eigen::VectorXd m_q_now;
 
-  Eigen::MatrixXd m_q;
-  Eigen::MatrixXd m_dq;
-  Eigen::MatrixXd m_ddq;
+  Eigen::VectorXd m_q;
+  Eigen::VectorXd m_dq;
+  Eigen::VectorXd m_ddq;
 
   Eigen::VectorXd m_target_dx;
   Eigen::Affine3d m_target_x;
@@ -168,7 +169,7 @@ protected:
   std::string              m_robot_description;
 
   std::string m_base_footprint  {"base_footprint"};
-  std::string m_base_link       {"base_link"};
+//  std::string m_base_link       {"base_link"};
   std::string m_tool_frame      {"tool0"};
   std::string m_map_frame       {"map"};
   std::string m_namespace       {"leader"};
@@ -225,7 +226,7 @@ protected:
   Params m_params;
   void declare_parameters ();
   bool read_parameters    ();
-  void interpolate(const rclcpp::Time& t_t, const rclcpp::Time& t_start, Eigen::VectorXd& interp_vel, Eigen::Affine3d& out);
+  void interpolate(const rclcpp::Time& t_t, const rclcpp::Time& t_start, Eigen::Vector6d& interp_vel, Eigen::Affine3d& out);
 };
 } // formation_mpc
 //PLUGINLIB_EXPORT_CLASS;

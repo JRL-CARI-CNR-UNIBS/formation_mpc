@@ -14,6 +14,7 @@ find_package(ament_cmake REQUIRED)
 find_package(rosidl_default_generators REQUIRED)
 
 find_package(trajectory_msgs REQUIRED)
+find_package(moveit_msgs REQUIRED)
 
 set(msg_files
   "msg/TrjOptimResults.msg"
@@ -30,7 +31,7 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   ${msg_files}
   ${srv_files}
   ${action_files}
-  DEPENDENCIES trajectory_msgs
+  DEPENDENCIES trajectory_msgs moveit_msgs
 )
 
 ament_export_dependencies(rosidl_default_runtime)

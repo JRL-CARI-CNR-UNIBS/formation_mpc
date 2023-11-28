@@ -1,4 +1,3 @@
-*/.vscode
-.vscode
-*/*.user
-simple_interpolator*
+*.vscode
+*.user
+

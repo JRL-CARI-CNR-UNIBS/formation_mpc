@@ -3,7 +3,7 @@
 <robot name="mobile_manipulator" xmlns:xacro="http://ros.org/wiki/xacro" xmlns:gz="http://gazebosim.org/schema">
   <xacro:arg name="prefix"             default="ghost/"/>
   <xacro:arg name="world_frame"        default="map"/>
-  <xacro:arg name="create_world_frame" default="false"/>
+  <xacro:arg name="create_world_frame" default="true"/>
 
   <!-- <xacro:include file="$(find cooperative_transport_cell)/urdf/fake_base.xacro"/>
   <xacro:fake_base_macro prefix="$(arg prefix)" world_frame="$(arg world_frame)" create_world="$(arg create_world_frame)"/> -->
@@ -21,6 +21,11 @@
         <box size="1.0 2.0 0.2"/>
       </geometry>
     </visual>
+    <collision>
+      <geometry>
+        <box size="1.0 2.0 0.2"/>
+      </geometry>
+    </collision>
   </link>
   <joint name="$(arg prefix)to_ghost_frame_x" type="prismatic">
     <parent link="$(arg world_frame)"/>
