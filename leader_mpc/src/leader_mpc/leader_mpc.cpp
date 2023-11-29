@@ -175,12 +175,14 @@ bool LeaderMPC::init()
   m_max_scaling.init(&m_model);
   m_ub_acc.setLimits( m_rdyn_full_chain->getDDQMax());
   m_lb_acc.setLimits(-m_rdyn_full_chain->getDDQMax());
+  RCLCPP_DEBUG_STREAM(this->get_logger(), "acceleration limits: " << m_rdyn_full_chain->getDDQMax());
   m_ub_vel.setLimits( m_rdyn_full_chain->getDQMax());
   m_lb_vel.setLimits(-m_rdyn_full_chain->getDQMax());
+  RCLCPP_DEBUG_STREAM(this->get_logger(), "velocity limits: " << m_rdyn_full_chain->getDQMax());
   m_ub_pos.setLimits( m_rdyn_full_chain->getQMax());
   m_ub_inv.setLimits( m_rdyn_full_chain->getQMax(), m_rdyn_full_chain->getDQMax(), -m_rdyn_full_chain->getDDQMax());
   m_lb_pos.setLimits( m_rdyn_full_chain->getQMin());
-  m_lb_inv.setLimits( m_rdyn_full_chain->getQMax(), -m_rdyn_full_chain->getDQMax(), m_rdyn_full_chain->getDDQMax());
+  m_lb_inv.setLimits( m_rdyn_full_chain->getQMin(), -m_rdyn_full_chain->getDQMax(), m_rdyn_full_chain->getDDQMax());
   m_max_scaling.setLimits(m_params.scaling.limit);
   m_ineq_array.addConstraint(&m_lb_inv);
   m_ineq_array.addConstraint(&m_lb_pos);
@@ -294,7 +296,7 @@ geometry_msgs::msg::TwistStamped LeaderMPC::compute_velocity_command()
   Eigen::MatrixXd CE;
   Eigen::VectorXd ce0;
   taskQP::math::computeHQPSolution(m_sot, CE, ce0, m_ineq_array.matrix(), m_ineq_array.vector(), m_solutions);
-  RCLCPP_DEBUG(this->get_logger(), "HQP computation ended");
+  RCLCPP_DEBUG_STREAM(this->get_logger(), "HQP solution" << m_solutions);
   double scaling = m_solutions(m_nax * m_control_horizon);
 
   m_model.updatePredictions(m_solutions.head(m_nax*m_control_horizon));
