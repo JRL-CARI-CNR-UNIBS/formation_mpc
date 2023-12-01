@@ -210,15 +210,20 @@ bool LeaderMPC::init()
 
   m_leader_trj__pub = this->create_publisher<formation_msgs::msg::TrjOptimResults>(m_params.trj_leader_topic, 10);
   m_joint_trajectory__pub = this->create_publisher<trajectory_msgs::msg::JointTrajectory>(m_params.cmd_trj_topic, 10);
-//  m_joint_publisher__pub = this->create_publisher<sensor_msgs::msg::JointState>(m_params.joint_pub_topic, 10);
   m_cmd_vel__pub = this->create_publisher<geometry_msgs::msg::TwistStamped>(m_params.cmd_vel_topic, 10);
+
+  // TODO: Leggi da state interface
   m_joint_state__sub = this->create_subscription<sensor_msgs::msg::JointState>("/joint_states", 10, [this](const sensor_msgs::msg::JointState& msg){
     std::lock_guard<std::mutex> l(m_mtx);
     for(size_t idx = 0; idx < msg.name.size(); ++idx)
     {
       m_q_now(idx) = msg.position.at(idx);
     }
-  }); // TODO: metti fra parametri il topic
+  });
+  //--------------------------------/
+
+  m_base_pos__pub = this->create_publisher<std_msgs::msg::Float64MultiArray>("/base_position_controller/commands", 10);
+  m_manip_pos__pub = this->create_publisher<std_msgs::msg::Float64MultiArray>("/ur_position_controller/commands", 10);
 
   m_trj_server__action = rclcpp_action::create_server<FollowFormationTrajectory>(
                            this,
@@ -320,14 +325,29 @@ geometry_msgs::msg::TwistStamped LeaderMPC::compute_velocity_command()
   vel_msg.twist.angular.z = m_solutions(2);
 
   // joint values for manipulator
-  trajectory_msgs::msg::JointTrajectory trj_msg;
-  trj_msg.header.stamp = now;
-  trj_msg.joint_names = m_joint_names;
-  trj_msg.points.resize(1);
-  trj_msg.points.at(0).positions = std::vector<double>(m_q.head(m_nax).data(), m_q.head(m_nax).data() + m_q.head(m_nax).rows());
-  trj_msg.points.at(0).velocities = std::vector<double>(m_dq.head(m_nax).data(), m_dq.head(m_nax).data() + m_dq.head(m_nax).rows());
+//  trajectory_msgs::msg::JointTrajectory trj_msg;
+//  trj_msg.header.stamp = now;
+//  trj_msg.joint_names = m_joint_names;
+//  trj_msg.points.resize(1);
+//  trj_msg.points.at(0).positions = std::vector<double>(m_q.head(m_nax).data(), m_q.head(m_nax).data() + m_q.head(m_nax).rows());
+//  trj_msg.points.at(0).velocities = std::vector<double>(m_dq.head(m_nax).data(), m_dq.head(m_nax).data() + m_dq.head(m_nax).rows());
 
-  m_joint_trajectory__pub->publish(trj_msg);
+//  m_joint_trajectory__pub->publish(trj_msg);
+
+  std_msgs::msg::Float64MultiArray msg;
+  msg.data.push_back(m_solutions(0));
+  msg.data.push_back(m_solutions(1));
+  msg.data.push_back(m_solutions(2));
+  m_base_pos__pub->publish(msg);
+
+  msg.data.clear();
+  msg.data.push_back(m_solutions(3));
+  msg.data.push_back(m_solutions(4));
+  msg.data.push_back(m_solutions(5));
+  msg.data.push_back(m_solutions(6));
+  msg.data.push_back(m_solutions(7));
+  msg.data.push_back(m_solutions(8));
+  m_manip_pos__pub->publish(msg);
 
   // Parte di comunicazione con il follower
   formation_msgs::msg::TrjOptimResults sol;

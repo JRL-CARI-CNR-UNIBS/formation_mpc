@@ -71,14 +71,15 @@ def generate_launch_description():
     package="controller_manager",
     executable="ros2_control_node",
     parameters=[robot_description, controller_parameters],
-    output="screen"
+    output="screen",
     )
 
   spawn_controller = Node(
     package="controller_manager",
     executable="spawner",
     output="screen",
-    arguments=["fake_imm_controller"]
+#    arguments=["fake_imm_controller"],
+    arguments=["base_position_controller", "ur_position_controller"],
   )
 
   robot_state_publisher = Node(

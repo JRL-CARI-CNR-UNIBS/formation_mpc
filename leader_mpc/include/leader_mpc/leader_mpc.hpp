@@ -17,9 +17,9 @@
 #include <rclcpp_action/rclcpp_action.hpp>
 #include "rclcpp_components/register_node_macro.hpp"
 
-//#include <rclcpp_lifecycle/state.hpp>
-//#include <rclcpp_lifecycle/lifecycle_node.hpp>
-//#include <rclcpp_lifecycle/node_interfaces/lifecycle_node_interface.hpp>
+#include <rclcpp_lifecycle/state.hpp>
+#include <rclcpp_lifecycle/lifecycle_node.hpp>
+#include <rclcpp_lifecycle/node_interfaces/lifecycle_node_interface.hpp>
 
 //#include "controller_interface/controller_interface.hpp"
 //#include "controller_interface/helpers.hpp"
@@ -47,10 +47,9 @@
 #include <std_msgs/msg/string.hpp>
 #include <geometry_msgs/msg/twist_stamped.hpp>
 #include <moveit_msgs/msg/cartesian_trajectory.hpp>
-//#include <trajectory_msgs/msg/multi_dof_joint_trajectory.hpp>
-//#include <trajectory_msgs/msg/multi_dof_joint_trajectory_point.hpp>
-//#include <nav_msgs/msg/path.hpp>
 #include <sensor_msgs/msg/joint_state.hpp>
+
+#include <std_msgs/msg/float64_multi_array.hpp>
 
 #include "formation_msgs/msg/trj_optim_results.hpp"
 #include "formation_msgs/action/follow_formation_leader_trajectory.hpp"
@@ -152,6 +151,10 @@ protected:
   rclcpp::Publisher<formation_msgs::msg::TrjOptimResults>::SharedPtr    m_leader_trj__pub;
   rclcpp::Publisher<geometry_msgs::msg::TwistStamped>::SharedPtr        m_cmd_vel__pub;
   rclcpp::Publisher<trajectory_msgs::msg::JointTrajectory>::SharedPtr   m_joint_trajectory__pub;
+
+    // temp Pub
+    rclcpp::Publisher<std_msgs::msg::Float64MultiArray>::SharedPtr m_base_pos__pub;
+    rclcpp::Publisher<std_msgs::msg::Float64MultiArray>::SharedPtr m_manip_pos__pub;
 
   // Subscribers
   rclcpp::Subscription<std_msgs::msg::String>::SharedPtr          robot_description__sub;
