@@ -13,13 +13,17 @@ find_package(rclcpp                     REQUIRED)
 find_package(rclcpp_lifecycle           REQUIRED)
 find_package(rclcpp_action              REQUIRED)
 find_package(pluginlib                  REQUIRED)
+## ros2_control
+find_package(controller_interface       REQUIRED)
+find_package(realtime_tools             REQUIRED)
+find_package(control_toolbox            REQUIRED)
 ## msgs, srv
 find_package(geometry_msgs              REQUIRED)
 find_package(trajectory_msgs            REQUIRED)
 find_package(formation_msgs             REQUIRED)
 find_package(sensor_msgs                REQUIRED)
 find_package(map_msgs                   REQUIRED)
-find_package(moveit_msgs                   REQUIRED)
+find_package(moveit_msgs                REQUIRED)
 ## tf2
 find_package(tf2_ros                    REQUIRED)
 find_package(tf2_eigen                  REQUIRED)
@@ -41,8 +45,7 @@ set(THIS_PACKAGE_LIBRARIES_DEPENDENCIES
   rclcpp
   rclcpp_lifecycle
   rclcpp_action
-  rclcpp_components
-#  pluginlib
+  pluginlib
   geometry_msgs
   trajectory_msgs
   sensor_msgs
@@ -53,6 +56,9 @@ set(THIS_PACKAGE_LIBRARIES_DEPENDENCIES
   tf2_ros
   tf2_eigen
   Eigen3
+  controller_interface
+  realtime_tools
+  control_toolbox
   )
   
 list(APPEND ${PROJECT_NAME}_ADD_HPP # Only for IDE project visualization
@@ -78,6 +84,9 @@ if(${CMAKE_BUILD_TYPE} MATCHES "Debug")
   target_compile_definitions(${PROJECT_NAME} PRIVATE DEBUG_ON)
 endif()
 
+pluginlib_export_plugin_description_file(controller_interface controller_plugin.xml)
+
+
 install(TARGETS ${PROJECT_NAME} leader_mpc_parameters
   EXPORT export_${PROJECT_NAME}
   ARCHIVE DESTINATION lib/${PROJECT_NAME}
@@ -102,16 +111,16 @@ install(DIRECTORY include/${PROJECT_NAME}
 ##########
 ## Node ##
 ##########
-add_executable(leader_mpc_node
-  src/leader_mpc_node.cpp)
-#ament_target_dependencies(leader_mpc_node
-#  ${THIS_PACKAGE_LIBRARIES_DEPENDENCIES}
-#  )
-target_link_libraries(leader_mpc_node PRIVATE
-  ${PROJECT_NAME}
-  leader_mpc_parameters)
-install(TARGETS leader_mpc_node
-  DESTINATION lib/${PROJECT_NAME})
+# add_executable(leader_mpc_node
+#   src/leader_mpc_node.cpp)
+# #ament_target_dependencies(leader_mpc_node
+# #  ${THIS_PACKAGE_LIBRARIES_DEPENDENCIES}
+# #  )
+# target_link_libraries(leader_mpc_node PRIVATE
+#   ${PROJECT_NAME}
+#   leader_mpc_parameters)
+# install(TARGETS leader_mpc_node
+#   DESTINATION lib/${PROJECT_NAME})
 ##########
 
 if(BUILD_TESTING)

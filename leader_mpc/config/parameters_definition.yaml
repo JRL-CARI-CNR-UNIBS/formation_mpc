@@ -21,6 +21,14 @@ formation_mpc: # defined per generate_parameter_library
       gt<>: 0.0
     }
   }
+  action_monitor_rate: {
+    type: double,
+    default_value: 100.0,
+    description: "Monitor action state at defined frequency",
+    validation: {
+      gt<>: 0.0
+    }
+  }
   formation_dt: { # Not Implemented
     type: double,
     default_value: 0.1,
@@ -36,6 +44,12 @@ formation_mpc: # defined per generate_parameter_library
       gt_eq<>: 0.0
     }
   }
+  pid:
+    P: {
+      type: double_array,
+      default_value: [],
+      description: ""
+    }
   leader_ns: {
     type: string,
     default_value: "sweepee_1",

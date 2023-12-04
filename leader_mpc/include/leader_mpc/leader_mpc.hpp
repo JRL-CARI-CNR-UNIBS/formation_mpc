@@ -15,17 +15,18 @@
 #include <rclcpp/rclcpp.hpp>
 #include <rclcpp/wait_for_message.hpp>
 #include <rclcpp_action/rclcpp_action.hpp>
-#include "rclcpp_components/register_node_macro.hpp"
 
-#include <rclcpp_lifecycle/state.hpp>
-#include <rclcpp_lifecycle/lifecycle_node.hpp>
-#include <rclcpp_lifecycle/node_interfaces/lifecycle_node_interface.hpp>
+//#include <rclcpp_lifecycle/state.hpp>
+//#include <rclcpp_lifecycle/lifecycle_node.hpp>
+//#include <rclcpp_lifecycle/node_interfaces/lifecycle_node_interface.hpp>
 
-//#include "controller_interface/controller_interface.hpp"
-//#include "controller_interface/helpers.hpp"
+#include <controller_interface/controller_interface.hpp>
+#include <controller_interface/helpers.hpp>
+#include <control_toolbox/pid.hpp>
 
-//#include "realtime_tools/realtime_buffer.h"
-//#include "realtime_tools/realtime_publisher.h"
+#include <realtime_tools/realtime_buffer.h>
+#include <realtime_tools/realtime_publisher.h>
+#include <realtime_tools/realtime_server_goal_handle.h>
 
 //#include <hardware_interface/types/hardware_interface_type_values.hpp>
 
@@ -62,25 +63,29 @@
 
 namespace formation_mpc
 {
-  using CallbackReturn = rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn;
+  using CallbackReturn = controller_interface::CallbackReturn;
   using namespace std::placeholders;
   constexpr double k_task_level_multiplier = 1e-3;
 
-class LeaderMPC : public rclcpp_lifecycle::LifecycleNode // FIXME: ros2_controller or nav2_controller or moveit_local_planner
+class LeaderMPC : public controller_interface::ControllerInterface
 {
 public: 
   using FollowFormationTrajectory = formation_msgs::action::FollowFormationLeaderTrajectory;
-  using GoalHandleFFT = rclcpp_action::ServerGoalHandle<FollowFormationTrajectory>;
+//  using GoalHandleFFT = rclcpp_action::ServerGoalHandle<FollowFormationTrajectory>;
+  using RTGoalHandle = realtime_tools::RealtimeServerGoalHandle<FollowFormationTrajectory>;
+  using RTGoalHandlePtr = std::shared_ptr<RTGoalHandle>;
+  using RTGoalHandleBuffer = realtime_tools::RealtimeBuffer<RTGoalHandlePtr>;
 
-  LeaderMPC(const std::string name, const rclcpp::NodeOptions options = rclcpp::NodeOptions());
+  LeaderMPC();
 
-  geometry_msgs::msg::TwistStamped compute_velocity_command();
+  void compute_velocity_command();
 
   void set_plan(const moveit_msgs::msg::CartesianTrajectory& trj);
 
-  void set_speed_limit(const double & speed_limit, const bool & percentage);
+  controller_interface::InterfaceConfiguration command_interface_configuration() const override;
+  controller_interface::InterfaceConfiguration state_interface_configuration() const override;
 
-  bool init();
+  CallbackReturn on_init();
   CallbackReturn on_configure (const rclcpp_lifecycle::State& /*state*/) override;
   CallbackReturn on_activate  (const rclcpp_lifecycle::State& /*state*/) override;
   CallbackReturn on_deactivate(const rclcpp_lifecycle::State& /*state*/) override;
@@ -89,15 +94,29 @@ public:
   // CallbackReturn on_shutdown  (const rclcpp_lifecycle::State& /*state*/) override;
   void reset     ();
 
-  void update(const std::shared_ptr<GoalHandleFFT> goal_handle);
+  controller_interface::return_type update(const rclcpp::Time & time, const rclcpp::Duration & period) override;
+
 
 protected:
+
+  // --- ros2_control ---
+  std::vector<std::string> m_joint_names;
+  std::vector<std::string> m_command_interface_types;
+  std::vector<std::string> m_state_interface_types;
+
+  std::vector<std::reference_wrapper<hardware_interface::LoanedCommandInterface>> m_joint_position_command_interface;
+  std::vector<std::reference_wrapper<hardware_interface::LoanedCommandInterface>> m_joint_velocity_command_interface;
+  std::vector<std::reference_wrapper<hardware_interface::LoanedStateInterface>>   m_joint_position_state_interface;
+  std::vector<std::reference_wrapper<hardware_interface::LoanedStateInterface>>   m_joint_velocity_state_interface;
+  // ------
+
 
   rclcpp::TimerBase::SharedPtr m_update_timer;
 
   rclcpp::Time m_t {0};
   rclcpp::Time t_start {0};
   bool m_is_new_plan {false};
+
   struct Trajectory{
     std::vector<Eigen::Affine3d> pose;
     std::vector<Eigen::Vector6d> twist;
@@ -126,23 +145,25 @@ protected:
   const rclcpp::Duration k_max_delay = rclcpp::Duration::from_nanoseconds(1e8); // 100ms
   double k_e_f {0.1};
 
-  rclcpp_lifecycle::LifecycleNode::WeakPtr m_node_weak;
+  Eigen::ArrayXd m_kp;
 
   std::mutex m_mtx;
-
-//  std::string m_plan_topic {"/plan"};
-//  rclcpp::Subscription<nav_msgs::msg::Path>::SharedPtr m_get_plan__sub_ptr;
-//  nav_msgs::msg::Path m_original_plan;
 
   unsigned int m_nax;
   unsigned int m_nax_arm;
   unsigned int m_nax_base;
 
-  Eigen::VectorXd m_q_now;
+  Eigen::VectorXd m_q__state;
 
-  Eigen::VectorXd m_q;
-  Eigen::VectorXd m_dq;
-  Eigen::VectorXd m_ddq;
+  // Eigen::VectorXd m_q;
+  // Eigen::VectorXd m_dq;
+  // Eigen::VectorXd m_ddq;
+
+  Eigen::VectorXd m_q__cmd;
+  Eigen::VectorXd m_dq__cmd;
+  Eigen::VectorXd m_ddq__cmd;
+
+  std::vector<control_toolbox::Pid> m_pid__vector;
 
   Eigen::VectorXd m_target_dx;
   Eigen::Affine3d m_target_x;
@@ -163,12 +184,18 @@ protected:
 
   // Actions
   rclcpp_action::Server<FollowFormationTrajectory>::SharedPtr m_trj_server__action;
-  rclcpp_action::CancelResponse handle_cancel(const std::shared_ptr<GoalHandleFFT> goal_handle);
-  void                          handle_accepted(const std::shared_ptr<GoalHandleFFT> goal_handle);
-  rclcpp_action::GoalResponse   handle_goal(const rclcpp_action::GoalUUID & uuid,
+  rclcpp_action::CancelResponse handle_cancel__cb(const std::shared_ptr<rclcpp_action::ServerGoalHandle<FollowFormationTrajectory>> goal_handle);
+  void                          handle_accepted__cb(const std::shared_ptr<rclcpp_action::ServerGoalHandle<FollowFormationTrajectory>> goal_handle);
+  rclcpp_action::GoalResponse   handle_goal__cb(const rclcpp_action::GoalUUID & uuid,
                                             std::shared_ptr<const FollowFormationTrajectory::Goal> goal);
 
-  std::vector<std::string> m_joint_names;
+  RTGoalHandleBuffer m_rt_active_goal;
+  rclcpp::TimerBase::SharedPtr m_timer;
+  rclcpp::Duration m_action_monitor_period;
+
+  bool m_is_there_goal_active {false};
+  bool m_is_there_new_goal    {false};
+
   std::string              m_robot_description;
 
   std::string m_base_footprint  {"base_footprint"};
@@ -177,8 +204,6 @@ protected:
   std::string m_map_frame       {"map"};
   std::string m_namespace       {"leader"};
   std::string this_frame(const std::string& s) { return m_namespace + "/" + s;}
-
-
 
   std::unique_ptr<tf2_ros::TransformListener> m_tf_listener_ptr;
   std::unique_ptr<tf2_ros::Buffer> m_tf_buffer_ptr;
@@ -194,7 +219,6 @@ protected:
   // rdyn parameters
   Eigen::Vector3d m_gravity {0, 0, -9.80665};
   rdyn::ChainPtr  m_rdyn_full_chain;
-
 
   // HQP solution
   Eigen::VectorXd       m_solutions;
