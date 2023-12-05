@@ -24,7 +24,7 @@ class TrajectoryCreation(Node):
     self.declare_parameter('duration', 10)
     self.max_delta = [10,10,0.5,np.deg2rad(0),np.deg2rad(0),np.deg2rad(0)]
     self.srv = self.create_service(Trigger, 'generate_cartesian_trajectory', self.generate__cb)
-    self.act_client = ActionClient(self, FollowFormationLeaderTrajectory, '/follow_leader_trajectory')
+    self.act_client = ActionClient(self, FollowFormationLeaderTrajectory, '/leader_mpc/follow_leader_trajectory')
 
     self.tf_buffer = tf2_ros.Buffer()
     self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self)

@@ -15,6 +15,7 @@ find_package(rclcpp_action              REQUIRED)
 find_package(pluginlib                  REQUIRED)
 ## ros2_control
 find_package(controller_interface       REQUIRED)
+find_package(hardware_interface         REQUIRED)
 find_package(realtime_tools             REQUIRED)
 find_package(control_toolbox            REQUIRED)
 ## msgs, srv
@@ -40,7 +41,7 @@ generate_parameter_library(leader_mpc_parameters # cmake target name for the par
   config/parameters_definition.yaml # path to input yaml file
 )
 
-set(THIS_PACKAGE_LIBRARIES_DEPENDENCIES
+set(THIS_PACKAGE_ROS_LIBRARIES_DEPENDENCIES
   ament_cmake
   rclcpp
   rclcpp_lifecycle
@@ -52,14 +53,22 @@ set(THIS_PACKAGE_LIBRARIES_DEPENDENCIES
   map_msgs
   formation_msgs
   moveit_msgs
-  task_math
   tf2_ros
   tf2_eigen
   Eigen3
+  task_math
+  hardware_interface
   controller_interface
   realtime_tools
   control_toolbox
   )
+
+set(THIS_PACKAGE_NON_ROS_LIBRARIES_DEPENDENCIES
+  rdyn_core)
+
+set(THIS_PACKAGE_LIBRARIES_DEPENDENCIES
+  ${THIS_PACKAGE_ROS_LIBRARIES_DEPENDENCIES}
+  ${THIS_PACKAGE_NON_ROS_LIBRARIES_DEPENDENCIES})
   
 list(APPEND ${PROJECT_NAME}_ADD_HPP # Only for IDE project visualization
   include/${PROJECT_NAME}/leader_mpc.hpp
@@ -68,17 +77,18 @@ list(APPEND ${PROJECT_NAME}_ADD_HPP # Only for IDE project visualization
 list(APPEND ${PROJECT_NAME}_ADD_CPP
   src/${PROJECT_NAME}/leader_mpc.cpp)
 
-add_library(${PROJECT_NAME}
+add_library(${PROJECT_NAME} SHARED
   ${${PROJECT_NAME}_ADD_HPP}
   ${${PROJECT_NAME}_ADD_CPP})
 target_link_libraries(${PROJECT_NAME} PUBLIC
   leader_mpc_parameters
-  rdyn_core)
+  task_math
+  ${THIS_PACKAGE_NON_ROS_LIBRARIES_DEPENDENCIES})
 ament_target_dependencies(${PROJECT_NAME} PUBLIC
-  ${THIS_PACKAGE_LIBRARIES_DEPENDENCIES})
+  ${THIS_PACKAGE_ROS_LIBRARIES_DEPENDENCIES})
 target_include_directories(${PROJECT_NAME} PUBLIC
   $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
-  $<INSTALL_INTERFACE:include>)
+  $<INSTALL_INTERFACE:include/${PROJECT_NAME}>)
 
 if(${CMAKE_BUILD_TYPE} MATCHES "Debug")
   target_compile_definitions(${PROJECT_NAME} PRIVATE DEBUG_ON)
@@ -94,43 +104,15 @@ install(TARGETS ${PROJECT_NAME} leader_mpc_parameters
   RUNTIME DESTINATION bin/${PROJECT_NAME}
   )
 
-#export(
-#  EXPORT export_${PROJECT_NAME}
-#  FILE "${PROJECT_BINARY_DIR}/leader_mpcTargets.cmake")
-
-#install(EXPORT export_${PROJECT_NAME}
-#  DESTINATION "share/${PROJECT_NAME}/cmake"
-#  FILE leader_mpcTargets.cmake)
-
 install(DIRECTORY config launch
   DESTINATION "share/${PROJECT_NAME}")
 
 install(DIRECTORY include/${PROJECT_NAME}
   DESTINATION include)
 
-##########
-## Node ##
-##########
-# add_executable(leader_mpc_node
-#   src/leader_mpc_node.cpp)
-# #ament_target_dependencies(leader_mpc_node
-# #  ${THIS_PACKAGE_LIBRARIES_DEPENDENCIES}
-# #  )
-# target_link_libraries(leader_mpc_node PRIVATE
-#   ${PROJECT_NAME}
-#   leader_mpc_parameters)
-# install(TARGETS leader_mpc_node
-#   DESTINATION lib/${PROJECT_NAME})
-##########
-
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
-  # the following line skips the linter which checks for copyrights
-  # comment the line when a copyright and license is added to all source files
   set(ament_cmake_copyright_FOUND TRUE)
-  # the following line skips cpplint (only works in a git repo)
-  # comment the line when this package is in a git repo and when
-  # a copyright and license is added to all source files
   set(ament_cmake_cpplint_FOUND TRUE)
   ament_lint_auto_find_test_dependencies()
 endif()

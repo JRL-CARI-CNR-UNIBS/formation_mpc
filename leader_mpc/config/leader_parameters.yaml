@@ -1,10 +1,38 @@
-leader_mpc_node: # TODO: guarda ??
+controller_manager:
   ros__parameters:
-    control_horizon: 2
+    update_rate: 100
+
+    leader_mpc:
+      type: formation_mpc/LeaderMPC
+
+    leader_joint_bcast:
+      type: joint_state_broadcaster/JointStateBroadcaster
+
+leader_joint_bcast:
+  ros__parameters:
+    use_local_topics: True
+    joints:
+      - "joint_x"
+      - "joint_y"
+      - "joint_rz"
+      - "ur/shoulder_pan_joint"
+      - "ur/shoulder_lift_joint"
+      - "ur/elbow_joint"
+      - "ur/wrist_1_joint"
+      - "ur/wrist_2_joint"
+      - "ur/wrist_3_joint"
+
+leader_mpc: # TODO: guarda ??
+  ros__parameters:
+    control_horizon_in_ms: 50.0
     prediction_horizon: 5
-    dt: 0.1
+    number_of_points: 2
+    dt: 0.01
     formation_dt: 0.1
     click_gain: 1
+    pid:
+      P: [1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0]
+    action_monitor_rate: 100.0
     leader_ns: "sweepee_1"
     is_omni: false
     mobile_base_link: "base_link"
@@ -12,7 +40,7 @@ leader_mpc_node: # TODO: guarda ??
     tool_frame: "ur/tool0"
     map_frame: "map"
     mount_frame: "mount_frame"
-    joints: # ??
+    joints:
       - "joint_x"
       - "joint_y"
       - "joint_rz"
@@ -32,20 +60,12 @@ leader_mpc_node: # TODO: guarda ??
       - 0.0
       - 0.0
       - 0.0
-    command_joints: # ??
-      - "joint_x"
-      - "joint_y"
-      - "joint_rz"
-      - "ur/shoulder_pan_joint"
-      - "ur/shoulder_lift_joint"
-      - "ur/elbow_joint"
-      - "ur/wrist_1_joint"
-      - "ur/wrist_2_joint"
-      - "ur/wrist_3_joint"
-    control_interface: # ??
-      - ""
-    state_interface: # ??
-      - ""
+    command_interface:
+#      - "velocity"
+      - "position"
+    state_interface:
+      - "position"
+      - "velocity"
     # robot_description_topic: "robot_description"
     # robot_description: ## from launcher
     cmd_vel_topic: "cmd_vel"

@@ -2,29 +2,13 @@
 
 #include <ament_index_cpp/get_package_share_directory.hpp>
 
+#include <hardware_interface/types/hardware_interface_type_values.hpp>
+
 namespace formation_mpc {
 LeaderMPC::LeaderMPC()
   : controller_interface::ControllerInterface(),
     m_action_monitor_period(0,0)
-{
-  m_joint_names = auto_declare<std::vector<std::string>>("joints", m_joint_names);
-  m_command_interface_types =
-    auto_declare<std::vector<std::string>>("command_interfaces", m_command_interface_types);
-  m_state_interface_types =
-    auto_declare<std::vector<std::string>>("state_interfaces", m_state_interface_types);
-
-  #ifdef DEBUG_ON
-  #include "rcutils/error_handling.h"
-  if(rcutils_logging_set_logger_level(this->get_node()->get_logger().get_name(), RCUTILS_LOG_SEVERITY_DEBUG))
-  {
-    RCLCPP_ERROR(this->get_node()->get_logger(), "Cannot set logger severity to DEBUG, using default");
-  }
-  else
-  {
-    RCLCPP_DEBUG(this->get_node()->get_logger(), "Enable DEBUG logging");
-  }
-  #endif
-}
+{}
 
 controller_interface::InterfaceConfiguration
 LeaderMPC::command_interface_configuration() const
@@ -33,11 +17,13 @@ LeaderMPC::command_interface_configuration() const
       = {controller_interface::interface_configuration_type::INDIVIDUAL, {}};
 
   conf.names.reserve(m_joint_names.size() * m_command_interface_types.size());
+  RCLCPP_DEBUG(this->get_node()->get_logger(), "Command interfaces:");
   for (const auto & joint_name : m_joint_names)
   {
     for (const auto & interface_type : m_command_interface_types)
     {
       conf.names.push_back(joint_name + "/" + interface_type);
+      RCLCPP_DEBUG(this->get_node()->get_logger(), "%s", conf.names.back().c_str());
     }
   }
 
@@ -51,11 +37,13 @@ LeaderMPC::state_interface_configuration() const
       = {controller_interface::interface_configuration_type::INDIVIDUAL, {}};
 
   conf.names.reserve(m_joint_names.size() * m_state_interface_types.size());
+  RCLCPP_DEBUG(this->get_node()->get_logger(), "State interfaces:");
   for (const auto & joint_name : m_joint_names)
   {
     for (const auto & interface_type : m_state_interface_types)
     {
       conf.names.push_back(joint_name + "/" + interface_type);
+      RCLCPP_DEBUG(this->get_node()->get_logger(), "%s", conf.names.back().c_str());
     }
   }
 
@@ -83,6 +71,28 @@ LeaderMPC::read_parameters()
     RCLCPP_ERROR(this->get_node()->get_logger(), "Parameters not loaded");
     return false;
   }
+  if (m_params.command_interface.empty())
+  {
+    RCLCPP_ERROR(get_node()->get_logger(), "'command_interface' parameter was empty");
+    return false;
+  }
+  else if (std::find(m_params.command_interface.begin(), m_params.command_interface.end(), hardware_interface::HW_IF_VELOCITY) == m_params.command_interface.end() &&
+           std::find(m_params.command_interface.begin(), m_params.command_interface.end(), hardware_interface::HW_IF_POSITION) == m_params.command_interface.end())
+  {
+    RCLCPP_ERROR(get_node()->get_logger(), "'command_interface' has no 'velocity' nor 'position' type");
+    return false;
+  }
+  if (m_params.state_interface.empty())
+  {
+    RCLCPP_ERROR(get_node()->get_logger(), "'state_interface' parameter was empty");
+    return false;
+  }
+  else if (   std::find(m_params.state_interface.begin(), m_params.state_interface.end(), hardware_interface::HW_IF_VELOCITY) == m_params.state_interface.end()
+           || std::find(m_params.state_interface.begin(), m_params.state_interface.end(), hardware_interface::HW_IF_POSITION) == m_params.state_interface.end())
+  {
+    RCLCPP_ERROR(get_node()->get_logger(), "'state_interface' has no 'velocity' or 'position' type");
+    return false;
+  }
   return true;
 
 }
@@ -90,6 +100,17 @@ LeaderMPC::read_parameters()
 CallbackReturn
 LeaderMPC::on_init()
 {
+#ifdef DEBUG_ON
+#include "rcutils/error_handling.h"
+if(rcutils_logging_set_logger_level(this->get_node()->get_logger().get_name(), RCUTILS_LOG_SEVERITY_DEBUG))
+{
+  RCLCPP_ERROR(this->get_node()->get_logger(), "Cannot set logger severity to DEBUG, using default");
+}
+else
+{
+  RCLCPP_DEBUG(this->get_node()->get_logger(), "Enable DEBUG logging");
+}
+#endif
   try
   {
     declare_parameters();
@@ -113,6 +134,16 @@ LeaderMPC::on_configure(const rclcpp_lifecycle::State& /*state*/)
     RCLCPP_ERROR(this->get_node()->get_logger(), "Error while reading parameters");
     return CallbackReturn::ERROR;
   }; //TODO: boh...
+
+  m_joint_names = m_params.joints;
+  for(auto& cmd_iface : m_params.command_interface)
+  {
+    m_command_interface_types.push_back(cmd_iface);
+  }
+  for(auto& st_iface : m_params.state_interface)
+  {
+    m_state_interface_types.push_back(st_iface);
+  }
 
   m_robot_description = m_params.robot_description;
 
@@ -185,21 +216,25 @@ LeaderMPC::on_configure(const rclcpp_lifecycle::State& /*state*/)
   RCLCPP_DEBUG(this->get_node()->get_logger(), "Rdyn: OK");
 
   RCLCPP_DEBUG(this->get_node()->get_logger(), "MPC config: start");
+  m_control_horizon_in_ms = m_params.control_horizon_in_ms;
+  m_number_of_points = m_params.number_of_points;
   int nax = m_rdyn_full_chain->getActiveJointsNumber();
   m_nax = nax;
-  m_model.setPredictiveHorizon(m_params.prediction_horizon);
+  m_model.setPredictiveHorizon(m_control_horizon_in_ms);
   m_prediction_horizon = m_params.prediction_horizon;
   m_model.setSamplingPeriod(m_params.dt);
   m_dt = m_params.dt;
 
-  m_model.init(nax,m_params.control_horizon, m_dt);
-  m_control_horizon = m_params.control_horizon;
+  m_model.init(nax, m_params.number_of_points, m_dt);
+
   // Stack of tasks
   m_sot.set_n_axis(nax);
-  m_sot.set_np(m_control_horizon);
+  m_sot.set_np(m_number_of_points);
+
   // Inequality array
   m_ineq_array.set_n_axis(nax);
-  m_ineq_array.set_np(m_control_horizon);
+  m_ineq_array.set_np(m_number_of_points);
+
   // Create task pointers
 //  m_minimize_acc.init(&m_model);
 //  m_minimize_vel.init(&m_model);
@@ -244,37 +279,22 @@ LeaderMPC::on_configure(const rclcpp_lifecycle::State& /*state*/)
 
 
   m_q__state.resize(nax);
-  m_q__cmd.resize(nax * m_control_horizon);
+  m_q__cmd.resize(nax * m_number_of_points);
   for(size_t idx = 0; idx < nax; ++idx)
   {
     m_q__cmd(idx) = m_params.initial_positions.at(0);
   }
-  m_dq__cmd.resize(nax * m_control_horizon);
-  m_ddq__cmd.resize(nax * m_control_horizon);
+  m_dq__cmd.resize(nax * m_number_of_points);
+  m_ddq__cmd.resize(nax * m_number_of_points);
+  m_dq__cmd  = Eigen::VectorXd::Zero(m_nax * m_number_of_points);
+  m_ddq__cmd = Eigen::VectorXd::Zero(m_nax * m_number_of_points);
 
-  m_target_dx.resize(m_control_horizon * 6);
+  m_target_dx.resize(m_number_of_points * 6);
   m_target_dx.setZero();
-
-  m_leader_trj__pub = this->get_node()->create_publisher<formation_msgs::msg::TrjOptimResults>(m_params.trj_leader_topic, 10);
-  m_joint_trajectory__pub = this->get_node()->create_publisher<trajectory_msgs::msg::JointTrajectory>(m_params.cmd_trj_topic, 10);
-  m_cmd_vel__pub = this->get_node()->create_publisher<geometry_msgs::msg::TwistStamped>(m_params.cmd_vel_topic, 10);
-
-  // TODO: Leggi da state interface
-  m_joint_state__sub = this->get_node()->create_subscription<sensor_msgs::msg::JointState>("/joint_states", 10, [this](const sensor_msgs::msg::JointState& msg){
-    std::lock_guard<std::mutex> l(m_mtx);
-    for(size_t idx = 0; idx < msg.name.size(); ++idx)
-    {
-      m_q__state(idx) = msg.position.at(idx);
-    }
-  });
-  //-------
-
-  m_base_pos__pub  = this->get_node()->create_publisher<std_msgs::msg::Float64MultiArray>("/base_position_controller/commands", 10);
-  m_manip_pos__pub = this->get_node()->create_publisher<std_msgs::msg::Float64MultiArray>("/ur_position_controller/commands", 10);
 
   m_trj_server__action = rclcpp_action::create_server<FollowFormationTrajectory>(
                            this->get_node(),
-                           std::string(this->get_node()->get_name()) + "follow_leader_trajectory",
+                           std::string(this->get_node()->get_name()) + "/follow_leader_trajectory",
                            std::bind(&LeaderMPC::handle_goal__cb, this, _1, _2),
                            std::bind(&LeaderMPC::handle_cancel__cb, this, _1),
                            std::bind(&LeaderMPC::handle_accepted__cb, this, _1));
@@ -294,6 +314,10 @@ LeaderMPC::on_configure(const rclcpp_lifecycle::State& /*state*/)
     m_pid__vector.back().initPid(m_params.pid.P.at(idx), 0.0,0.0,0.0,0.0,false);
   }
 
+  m_joint_position_command_interface.clear();
+  m_joint_position_state_interface.clear();
+  m_joint_velocity_state_interface.clear();
+
   RCLCPP_INFO(this->get_node()->get_logger(), "configure successful");
   return CallbackReturn::SUCCESS;
 }
@@ -302,21 +326,57 @@ CallbackReturn
 LeaderMPC::on_activate(const rclcpp_lifecycle::State& /*state*/)
 {
   using namespace std::chrono_literals;
-  RCLCPP_INFO(this->get_node()->get_logger(), "Activate successfully");
-  m_solutions.resize((m_nax+1)*m_control_horizon);
-  return CallbackReturn::SUCCESS;
-  m_dq__cmd  = Eigen::VectorXd::Zero(m_nax * m_control_horizon);
-  m_ddq__cmd = Eigen::VectorXd::Zero(m_nax * m_control_horizon);
+  m_solutions.resize((m_nax+1)*m_number_of_points);
+  if(m_tf_buffer_ptr->canTransform(m_map_frame, m_tool_frame, t_start, 1s))
+  {
+    // TODO: sostituisci con FK
+    geometry_msgs::msg::TransformStamped msg = m_tf_buffer_ptr->lookupTransform(m_map_frame, m_tool_frame, t_start);
+    m_target_x = tf2::transformToEigen(msg);
+  }
+  else
+  {
+    RCLCPP_ERROR(get_node()->get_logger(), "ERRORE!!!! Manca qualche tf");
+    return CallbackReturn::FAILURE;
+  }
+
+  m_target_dx.resize(m_number_of_points * 6);
+  m_target_dx.setZero();
+
+  for (size_t idx = 0; idx < state_interfaces_.size(); ++idx)
+  {
+    if(state_interfaces_.at(idx).get_interface_name() == hardware_interface::HW_IF_POSITION)
+    {
+      m_joint_position_state_interface.push_back(state_interfaces_.at(idx));
+    }
+    else if(state_interfaces_.at(idx).get_interface_name() == hardware_interface::HW_IF_VELOCITY)
+    {
+      m_joint_velocity_state_interface.push_back(state_interfaces_.at(idx));
+    }
+  }
+  for (size_t idx = 0; idx < command_interfaces_.size(); ++idx)
+  {
+    if(command_interfaces_.at(idx).get_interface_name() == hardware_interface::HW_IF_POSITION)
+    {
+      m_joint_position_command_interface.push_back(command_interfaces_.at(idx));
+    }
+    else if(command_interfaces_.at(idx).get_interface_name() == hardware_interface::HW_IF_VELOCITY)
+    {
+      m_joint_velocity_command_interface.push_back(command_interfaces_.at(idx));
+    }
+  }
+
+  for(size_t idx = 0; idx < m_nax; ++idx)
+  {
+    m_q__state(idx) = m_joint_position_state_interface.at(idx).get().get_value();
+  }
 
   Eigen::VectorXd initial_state( 2 * m_nax);
-  initial_state.head(m_nax) = m_q__cmd;
-  initial_state.tail(m_nax) = m_dq__cmd;
+  initial_state.head(m_nax) = m_q__state;
+  initial_state.tail(m_nax) = Eigen::VectorXd::Zero(m_nax);
   m_model.setInitialState( initial_state );
 
-  geometry_msgs::msg::TransformStamped msg = m_tf_buffer_ptr->lookupTransform(m_tool_frame, m_map_frame, t_start);
-  m_target_x = tf2::transformToEigen(msg);
-  m_target_dx.resize(m_control_horizon * 6);
-  m_target_dx.setZero();
+  RCLCPP_INFO(this->get_node()->get_logger(), "Activate successfully");
+  return CallbackReturn::SUCCESS;
 }
 
 CallbackReturn
@@ -342,33 +402,36 @@ LeaderMPC::set_plan(const moveit_msgs::msg::CartesianTrajectory& trj)
   }
   RCLCPP_INFO(this->get_node()->get_logger(), "New plan received");
   m_plan.started = false;
+  m_plan.available = true;
 }
 
 controller_interface::return_type
 LeaderMPC::update(const rclcpp::Time & t_time, const rclcpp::Duration & /*t_period*/)
 {
-//  auto start_ros = m_t = this->get_node()->get_clock()->now();
-//  if(!m_plan.started)
-//  {
-//    m_plan.start = start_ros;
-//    m_plan.started = true;
-//  }
+  if(!m_plan.available)
+  {
+    return controller_interface::return_type::OK;
+  }
+  if(!m_plan.started)
+  {
+    m_plan.start = m_t = this->get_node()->get_clock()->now();;
+    m_plan.started = true;
+  }
   for(size_t idx = 0; idx < m_nax; ++idx)
   {
     m_q__state(idx) = m_joint_position_state_interface.at(idx).get().get_value();
   }
 
-//  std::unique_lock<std::mutex> trj_lock(m_mtx);
   Eigen::Affine3d target_x;
   Eigen::Vector6d target_dx;
-  for(size_t idx = 0; idx < m_control_horizon; ++idx)
+  for(size_t idx = 0; idx < m_number_of_points; ++idx)
   {
     interpolate(m_t, m_plan.start, target_dx, target_x);
-    m_target_dx.segment<6>(idx) = target_dx;
+    m_target_dx.segment<6>(idx*6) = target_dx;
     if(idx == 0) m_target_x = target_x;
   }
 
-//  m_cartesian_leader_task.setTargetScaling();
+  m_cartesian_leader_task.setTargetScaling(1.0);
   m_cartesian_leader_task.setTargetTrajectory(m_target_dx, m_target_x);
 
   for(size_t idx = 0; idx < m_sot.stackSize(); ++idx)
@@ -382,31 +445,36 @@ LeaderMPC::update(const rclcpp::Time & t_time, const rclcpp::Duration & /*t_peri
   Eigen::MatrixXd CE;
   Eigen::VectorXd ce0;
   taskQP::math::computeHQPSolution(m_sot, CE, ce0, m_ineq_array.matrix(), m_ineq_array.vector(), m_solutions);
-  RCLCPP_DEBUG_STREAM(this->get_node()->get_logger(), "HQP solution" << m_solutions);
-//  double scaling = m_solutions(m_nax * m_control_horizon);
 
-  m_model.updatePredictions(m_solutions.head(m_nax*m_control_horizon));
+  m_model.updatePredictions(m_solutions.head(m_nax*m_number_of_points));
   m_model.updateState(m_solutions.head(m_nax));
 
   m_ddq__cmd = m_solutions.head(m_nax);
   m_dq__cmd  = m_model.getState().tail(m_nax);
   m_q__cmd   = m_model.getState().head(m_nax);
 
+
+//  msg.positions  = std::vector<double>(m_q__cmd.data(), m_q__cmd.data() + m_q__cmd.size());
+//  msg.velocities = std::vector<double>(m_dq__cmd.data(), m_dq__cmd.data() + m_dq__cmd.size());
+
+
   Eigen::VectorXd joint_error = m_q__cmd - m_q__state;
   for(size_t idx = 0; idx < m_nax; ++idx)
   {
-    m_joint_velocity_command_interface
-        .at(idx)
-        .get()
-        .set_value(
-          m_pid__vector.at(idx).computeCommand(joint_error(idx), m_dt) + m_dq__cmd(idx)
-          );
+//    m_joint_velocity_command_interface.at(idx).get().set_value(m_dq__cmd(idx));
+    m_joint_position_command_interface.at(idx).get().set_value(m_q__cmd(idx));
+//    m_joint_velocity_command_interface
+//        .at(idx)
+//        .get()
+//        .set_value(
+//          m_pid__vector.at(idx).computeCommand(joint_error(idx), m_dt) + m_dq__cmd(idx)
+//          );
   }
   if((this->get_node()->get_clock()->now() - t_time).seconds() > m_dt)
   {
     RCLCPP_ERROR(this->get_node()->get_logger(), "Control iteration duration did not respect deadline");
   }
-
+  return controller_interface::return_type::OK;
 }
 
 void
@@ -504,7 +572,7 @@ LeaderMPC::handle_accepted__cb(std::shared_ptr<rclcpp_action::ServerGoalHandle<F
   m_timer = this->get_node()->create_wall_timer(
               m_action_monitor_period.to_chrono<std::chrono::nanoseconds>(),
               std::bind(&RTGoalHandle::runNonRealtime, rt_goal));
-  RCLCPP_INFO(this->get_node()->get_logger(), "Starting trajectory");
+  RCLCPP_INFO(this->get_node()->get_logger(), "Trajectory accepted");
 }
 
 

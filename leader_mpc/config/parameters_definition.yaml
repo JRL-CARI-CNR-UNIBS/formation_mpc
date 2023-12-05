@@ -1,6 +1,6 @@
 formation_mpc: # defined per generate_parameter_library
-  control_horizon: {
-    type: int,
+  control_horizon_in_ms: {
+    type: double,
     default_value: 1,
     validation: {
       gt<>: 0
@@ -9,6 +9,13 @@ formation_mpc: # defined per generate_parameter_library
   prediction_horizon: {
     type: int,
     default_value: 5,
+    validation: {
+      gt<>: 0
+    }
+  }
+  number_of_points: {
+    type: int,
+    default_value: 1,
     validation: {
       gt<>: 0
     }
@@ -108,7 +115,7 @@ formation_mpc: # defined per generate_parameter_library
     default_value: [],
     description: "Name of the joints to control"
   }
-  control_interface: {
+  command_interface: {
     type: string_array,
     default_value: [],
     description: "Names of the control_interface to command",

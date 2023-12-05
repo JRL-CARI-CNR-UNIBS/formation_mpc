@@ -85,7 +85,7 @@ public:
   controller_interface::InterfaceConfiguration command_interface_configuration() const override;
   controller_interface::InterfaceConfiguration state_interface_configuration() const override;
 
-  CallbackReturn on_init();
+  CallbackReturn on_init() override;
   CallbackReturn on_configure (const rclcpp_lifecycle::State& /*state*/) override;
   CallbackReturn on_activate  (const rclcpp_lifecycle::State& /*state*/) override;
   CallbackReturn on_deactivate(const rclcpp_lifecycle::State& /*state*/) override;
@@ -106,6 +106,7 @@ protected:
 
   std::vector<std::reference_wrapper<hardware_interface::LoanedCommandInterface>> m_joint_position_command_interface;
   std::vector<std::reference_wrapper<hardware_interface::LoanedCommandInterface>> m_joint_velocity_command_interface;
+
   std::vector<std::reference_wrapper<hardware_interface::LoanedStateInterface>>   m_joint_position_state_interface;
   std::vector<std::reference_wrapper<hardware_interface::LoanedStateInterface>>   m_joint_velocity_state_interface;
   // ------
@@ -115,7 +116,6 @@ protected:
 
   rclcpp::Time m_t {0};
   rclcpp::Time t_start {0};
-  bool m_is_new_plan {false};
 
   struct Trajectory{
     std::vector<Eigen::Affine3d> pose;
@@ -124,6 +124,7 @@ protected:
     std::vector<rclcpp::Time> time;
     rclcpp::Time start;
     bool started;
+    bool available {false};
     void clear()
     {
       pose.clear();
@@ -168,19 +169,9 @@ protected:
   Eigen::VectorXd m_target_dx;
   Eigen::Affine3d m_target_x;
 
-  // Publishers
-  rclcpp::Publisher<formation_msgs::msg::TrjOptimResults>::SharedPtr    m_leader_trj__pub;
-  rclcpp::Publisher<geometry_msgs::msg::TwistStamped>::SharedPtr        m_cmd_vel__pub;
-  rclcpp::Publisher<trajectory_msgs::msg::JointTrajectory>::SharedPtr   m_joint_trajectory__pub;
-
-    // temp Pub
-    rclcpp::Publisher<std_msgs::msg::Float64MultiArray>::SharedPtr m_base_pos__pub;
-    rclcpp::Publisher<std_msgs::msg::Float64MultiArray>::SharedPtr m_manip_pos__pub;
-
   // Subscribers
   rclcpp::Subscription<std_msgs::msg::String>::SharedPtr          robot_description__sub;
   rclcpp::Subscription<sensor_msgs::msg::JointState>::SharedPtr   m_joint_state__sub;
-  //  rclcpp::Subscription<geometry_msgs::msg::Twist>::SharedPtr m_joints_command__sub; // ??
 
   // Actions
   rclcpp_action::Server<FollowFormationTrajectory>::SharedPtr m_trj_server__action;
@@ -211,8 +202,9 @@ protected:
   bool m_is_omni {false};
 
   // MPC parameters
-  unsigned int m_control_horizon;
+  double m_control_horizon_in_ms;
   unsigned int m_prediction_horizon;
+  unsigned int m_number_of_points;
   double m_clik_gain;
   double m_dt;
 
