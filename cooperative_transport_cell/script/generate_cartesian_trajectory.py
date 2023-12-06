@@ -21,7 +21,7 @@ class TrajectoryCreation(Node):
     self.declare_parameter('frame', 'ur/tool0')
     self.declare_parameter('world_frame','map')
     self.declare_parameter('axis',[1,1,1,0,0,0])
-    self.declare_parameter('duration', 10)
+    self.declare_parameter('duration', 60)
     self.max_delta = [10,10,0.5,np.deg2rad(0),np.deg2rad(0),np.deg2rad(0)]
     self.srv = self.create_service(Trigger, 'generate_cartesian_trajectory', self.generate__cb)
     self.act_client = ActionClient(self, FollowFormationLeaderTrajectory, '/leader_mpc/follow_leader_trajectory')
@@ -64,7 +64,8 @@ class TrajectoryCreation(Node):
     trj = self.interpolate(to_move_xyz__vec,
                            final_pose_xyz__vec,
                            to_move_rot__scipy,
-                           final_pose_rot__scipy)
+                           final_pose_rot__scipy,
+                           duration)
     
     plot_trj(trj)
     self.trj__pub.publish(trj)
@@ -79,9 +80,9 @@ class TrajectoryCreation(Node):
     
     
 
-  def interpolate(self, t_p0, t_p1, t_rot0: Rotation, t_rot1: Rotation) -> CartesianTrajectory:
+  def interpolate(self, t_p0, t_p1, t_rot0: Rotation, t_rot1: Rotation, t_duration) -> CartesianTrajectory:
     n = 20
-    all_t = np.linspace(0, 10, n)
+    all_t = np.linspace(0, t_duration, n)
     dt = all_t[1] - all_t[0]
     p0 = t_p0
     p1 = t_p1
@@ -105,7 +106,7 @@ class TrajectoryCreation(Node):
       v_intp = 3*c3*t**2 + 2*c2*t + c1
       p_rot = slerp(t).as_quat()
       pnt = CartesianTrajectoryPoint()
-      pnt.time_from_start = Duration(seconds=t).to_msg()
+      pnt.time_from_start = Duration(seconds=time).to_msg()
       pnt.point.pose.position.x = p_intp[0]
       pnt.point.pose.position.y = p_intp[1]
       pnt.point.pose.position.z = p_intp[2]

@@ -1,6 +1,7 @@
 from launch import LaunchDescription
-from launch.actions import EmitEvent
+from launch.actions import EmitEvent, RegisterEventHandler
 from launch.substitutions import Command, FindExecutable, LaunchConfiguration, PathJoinSubstitution
+from launch.event_handlers import OnProcessExit
 
 from launch_ros.actions import Node, LifecycleNode
 from launch_ros.substitutions import FindPackageShare
@@ -56,6 +57,13 @@ def generate_launch_description():
     arguments=["leader_joint_bcast"]
   )
 
+  start_mpc_on_bcast_activation = RegisterEventHandler(
+    OnProcessExit(
+      target_action=spawn_controller_bcast,
+      on_exit=[spawn_controller_mpc]
+    )
+  )
+
   robot_state_publisher = Node(
     package="robot_state_publisher",
     executable="robot_state_publisher",
@@ -99,7 +107,7 @@ def generate_launch_description():
 
   node_to_launch = [
     control_node,
-    spawn_controller_mpc,
+    start_mpc_on_bcast_activation,
     spawn_controller_bcast,
     robot_state_publisher,
     rviz2,

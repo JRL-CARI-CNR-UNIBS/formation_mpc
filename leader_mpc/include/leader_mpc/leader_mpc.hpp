@@ -225,7 +225,7 @@ protected:
   taskQP::math::virtualModel                      m_model;
 
   //** Tasks **//
-//  taskQP::math::MinimizeAcceleration          m_minimize_acc;
+  taskQP::math::MinimizeAcceleration          m_minimize_acc;
 //  taskQP::math::MinimizeVelocity              m_minimize_vel;
   taskQP::math::CartesianTask                 m_cartesian_leader_task;
 

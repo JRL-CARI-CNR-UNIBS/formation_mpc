@@ -240,11 +240,14 @@ LeaderMPC::on_configure(const rclcpp_lifecycle::State& /*state*/)
 //  m_minimize_vel.init(&m_model);
   m_cartesian_leader_task.init(&m_model, m_rdyn_full_chain.get(), {1,1,1,1,1,1}); // activate all cartesian axis
   m_cartesian_leader_task.activateScaling(m_params.scaling.active);
+  m_cartesian_leader_task.setWeightScaling(1e-3);
+  m_cartesian_leader_task.enableClik(true);
+  m_cartesian_leader_task.setWeightClik(m_params.clik_gain);
 
   m_sot.clear();
-//  m_sot.taskPushBack(&m_minimize_acc, std::pow(k_task_level_multiplier, m_params.hierarchy.at(0)-1));
-//  m_sot.taskPushBack(&m_minimize_vel, std::pow(k_task_level_multiplier, m_params.hierarchy.at(1)-1));
   m_sot.taskPushBack(&m_cartesian_leader_task, std::pow(k_task_level_multiplier, m_params.hierarchy.at(0)-1));
+//  m_sot.taskPushBack(&m_minimize_acc, std::pow(k_task_level_multiplier, m_params.hierarchy.at(0)-1));
+  //  m_sot.taskPushBack(&m_minimize_vel, std::pow(k_task_level_multiplier, m_params.hierarchy.at(1)-1));
 
   m_ub_acc.init(&m_model);
   m_lb_acc.init(&m_model);
@@ -399,6 +402,9 @@ LeaderMPC::set_plan(const moveit_msgs::msg::CartesianTrajectory& trj)
 //    tf2::fromMsg(trj.points.at(idx).point.acceleration, m_plan.acc.at(idx));
     m_plan.time.at(idx) = rclcpp::Time(trj.points.at(idx).time_from_start.sec,
                                        trj.points.at(idx).time_from_start.nanosec);
+    RCLCPP_DEBUG_STREAM(get_node()->get_logger(), "pos  -> " << m_plan.pose.at(idx).translation().transpose() << "\n" <<
+                                                  "vel  -> " << m_plan.twist.at(idx).transpose() << "\n" <<
+                                                  "time -> " << m_plan.time.at(idx).seconds());
   }
   RCLCPP_INFO(this->get_node()->get_logger(), "New plan received");
   m_plan.started = false;
@@ -408,13 +414,14 @@ LeaderMPC::set_plan(const moveit_msgs::msg::CartesianTrajectory& trj)
 controller_interface::return_type
 LeaderMPC::update(const rclcpp::Time & t_time, const rclcpp::Duration & /*t_period*/)
 {
+  m_t = t_time;
   if(!m_plan.available)
   {
     return controller_interface::return_type::OK;
   }
   if(!m_plan.started)
   {
-    m_plan.start = m_t = this->get_node()->get_clock()->now();;
+    m_plan.start = t_time;
     m_plan.started = true;
   }
   for(size_t idx = 0; idx < m_nax; ++idx)
@@ -431,8 +438,10 @@ LeaderMPC::update(const rclcpp::Time & t_time, const rclcpp::Duration & /*t_peri
     if(idx == 0) m_target_x = target_x;
   }
 
-  m_cartesian_leader_task.setTargetScaling(1.0);
-  m_cartesian_leader_task.setTargetTrajectory(m_target_dx, m_target_x);
+  taskQP::math::CartesianTask* cartesian_task_ptr = dynamic_cast<taskQP::math::CartesianTask*>(m_sot.getTask(0));
+  cartesian_task_ptr->setTargetTrajectory(m_target_dx, m_target_x);
+//  cartesian_task_ptr->setTargetScaling(1.0);
+
 
   for(size_t idx = 0; idx < m_sot.stackSize(); ++idx)
   {
@@ -453,10 +462,10 @@ LeaderMPC::update(const rclcpp::Time & t_time, const rclcpp::Duration & /*t_peri
   m_dq__cmd  = m_model.getState().tail(m_nax);
   m_q__cmd   = m_model.getState().head(m_nax);
 
-
 //  msg.positions  = std::vector<double>(m_q__cmd.data(), m_q__cmd.data() + m_q__cmd.size());
 //  msg.velocities = std::vector<double>(m_dq__cmd.data(), m_dq__cmd.data() + m_dq__cmd.size());
 
+  Eigen::VectorXd cartesian_error = cartesian_task_ptr->computeTaskError(m_target_x, m_model.getState().head(m_nax));
 
   Eigen::VectorXd joint_error = m_q__cmd - m_q__state;
   for(size_t idx = 0; idx < m_nax; ++idx)
@@ -484,10 +493,9 @@ LeaderMPC::interpolate(const rclcpp::Time& t_t,
                        Eigen::Affine3d& out)
 {
   rclcpp::Duration T = t_t - t_start;
-
+  rclcpp::Time t_now = rclcpp::Time(T.nanoseconds());
   for(size_t idx = 1; idx < m_plan.time.size(); idx++)
   {
-    rclcpp::Time t_now = rclcpp::Time(T.seconds());
     if(!(    ((t_now - m_plan.time.at(idx)).seconds() < 0)
           && ((t_now - m_plan.time.at(idx-1)).seconds() >= 0)
          )
@@ -495,6 +503,8 @@ LeaderMPC::interpolate(const rclcpp::Time& t_t,
     {
       continue;
     }
+    RCLCPP_DEBUG(get_node()->get_logger(), "T -> %f\nt_now -> %f\nidx -> %ld\nm_plan.time.at(idx) -> %f",
+                 T.seconds(), t_now.seconds(), idx, m_plan.time.at(idx).seconds());
     double delta_time = (m_plan.time.at(idx) - m_plan.time.at(idx-1)).seconds();
     double t = (t_now - m_plan.time.at(idx-1)).seconds();
     double ratio = t / delta_time;
