@@ -320,7 +320,8 @@ LeaderMPC::on_configure(const rclcpp_lifecycle::State& /*state*/)
   m_joint_velocity_state_interface.clear();
 
   // DEBUG
-  m_pose_target__pub = this->get_node()->create_publisher<geometry_msgs::msg::PoseStamped>("target_pose",10);
+  m_pose_target__pub =  this->get_node()->create_publisher<geometry_msgs::msg::PoseStamped>("target_pose",10);
+  m_twist_target__pub = this->get_node()->create_publisher<geometry_msgs::msg::TwistStamped>("target_twist",10);
 
   RCLCPP_INFO(this->get_node()->get_logger(), "configure successful");
   return CallbackReturn::SUCCESS;
@@ -429,6 +430,11 @@ LeaderMPC::update(const rclcpp::Time & t_time, const rclcpp::Duration & /*t_peri
       msg.header.stamp = t_time;
       msg.pose = tf2::toMsg(target_x);
       m_pose_target__pub->publish(msg);
+
+      geometry_msgs::msg::TwistStamped msg2;
+      msg2.header.stamp = t_time;
+      msg2.twist = tf2::toMsg(target_dx);
+      m_twist_target__pub->publish(msg2);
     }
   }
   if((t_time - m_plan.start).seconds() >= m_plan.time.back().seconds())
@@ -481,7 +487,7 @@ LeaderMPC::update(const rclcpp::Time & t_time, const rclcpp::Duration & /*t_peri
   }
   if((this->get_node()->get_clock()->now() - t_time).seconds() > m_dt)
   {
-    RCLCPP_ERROR(this->get_node()->get_logger(), "Control iteration duration did not respect deadline");
+    RCLCPP_ERROR(this->get_node()->get_logger(), "Control iteration duration did not respect the deadline");
   }
   return controller_interface::return_type::OK;
 }

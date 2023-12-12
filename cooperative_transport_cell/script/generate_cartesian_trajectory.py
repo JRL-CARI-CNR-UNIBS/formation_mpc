@@ -18,10 +18,12 @@ class TrajectoryCreation(Node):
   def __init__(self):
     super().__init__("generate_trajectory_node")
     rclpy.logging.set_logger_level(self.get_logger().name, rclpy.logging.LoggingSeverity.DEBUG)
-    self.declare_parameter('frame', 'ur/tool0')
-    self.declare_parameter('world_frame','map')
-    self.declare_parameter('axis',[1,1,1,0,0,0])
-    self.declare_parameter('duration', 60)
+
+    self.declare_parameter('frame',          'ur/tool0')
+    self.declare_parameter('world_frame',    'map')
+    self.declare_parameter('axis',           [1,1,1,0,0,0])
+    self.declare_parameter('duration',       60)
+
     self.max_delta = [10,10,0.5,np.deg2rad(0),np.deg2rad(0),np.deg2rad(0)]
     self.srv = self.create_service(Trigger, 'generate_cartesian_trajectory', self.generate__cb)
     self.act_client = ActionClient(self, FollowFormationLeaderTrajectory, '/leader_mpc/follow_leader_trajectory')

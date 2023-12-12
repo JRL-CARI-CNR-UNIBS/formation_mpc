@@ -155,6 +155,7 @@ protected:
 
   // Debug publishers
   rclcpp::Publisher<geometry_msgs::msg::PoseStamped>::SharedPtr   m_pose_target__pub;
+  rclcpp::Publisher<geometry_msgs::msg::TwistStamped>::SharedPtr   m_twist_target__pub;
 
   // Actions
   rclcpp_action::Server<FollowFormationTrajectory>::SharedPtr m_trj_server__action;

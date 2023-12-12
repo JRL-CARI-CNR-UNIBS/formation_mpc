@@ -35,7 +35,6 @@ leader_mpc: # TODO: guarda ??
       P: [1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0]
     action_monitor_rate: 100.0
     leader_ns: "sweepee_1"
-    is_omni: false
     mobile_base_link: "base_link"
     manipulator_base_link: "ur/base_link"
     tool_frame: "ur/tool0"
@@ -75,7 +74,7 @@ leader_mpc: # TODO: guarda ??
     hierarchy: [1,2,3]
     trj_leader_topic: "trj_share"
     plan_topic: "/plan"
-    base_max_vel: [2.0, 2.0, 2.0, 5.0, 5.0, 5.0]
+    base_max_vel: [5.0, 5.0, 5.0, 5.0, 5.0, 5.0]
     fake_base:
       package: "cooperative_transport_cell"
       path: "urdf/fake_base.urdf"
