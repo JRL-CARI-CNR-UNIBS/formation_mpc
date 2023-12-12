@@ -1,7 +1,7 @@
 formation_mpc: # defined per generate_parameter_library
   control_horizon_in_s: {
     type: double,
-    default_value: 1,
+    default_value: 0,
     validation: {
       gt<>: 0
     }
@@ -35,6 +35,14 @@ formation_mpc: # defined per generate_parameter_library
     description: "[NOT IMPLEMENTED] dt for formation mpc sync",
     validation: {
       gt<>: 0.0
+    }
+  }
+  cartesian_axis: {
+    type: bool_array,
+    default_value: [true, true, true, true, true, true],
+    description: "Cartesian axis to enable: [x, y, z, rx, ry, rz]. Default all enabled",
+    validation: {
+      fixed_size<>: 6
     }
   }
   clik:
@@ -101,6 +109,17 @@ formation_mpc: # defined per generate_parameter_library
     default_value: [],
     description: "Name of the joints to control"
   }
+#  joints:
+#    base: {
+#      type: string_array,
+#      default_value: [],
+#      description: "Which joints belong to the mobile base"
+#    }
+#    arm: {
+#      type: string_array,
+#      default_value: [],
+#      description: "Which joints belong to the arm"
+#    }
   initial_positions: {
     type: double_array,
     default_value: [],
@@ -153,7 +172,7 @@ formation_mpc: # defined per generate_parameter_library
     default_value: 1.0,
     description: "Scaling limit"
   }
-  hierarchy: {
+  hierarchy: { # Not implemented
     type: int_array,
     default_value: [1,2,3],
     description: "hierarchy of the tasks (1 is higher). In order: minimize_acceleration, minimize_velocity, cartesian_trajectory",

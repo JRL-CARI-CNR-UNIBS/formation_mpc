@@ -106,13 +106,13 @@ class TrajectoryCreation(Node):
     p_rot_old = t_rot0.as_quat()
     for idx, time in enumerate(all_t):
       t = (time - all_t[0])/(all_t[-1] - all_t[0])
-      c3 = 2*p0 + v0 - 2*p1 + v1
-      c2 = -3*p0 + 3*p1 -2*v0 - v1
-      c1 = v0
+      Dt = (all_t[-1] - all_t[0])
+      c3 = 2*p0 + Dt*v0 - 2*p1 + Dt*v1
+      c2 = -3*p0 + 3*p1 -2*Dt*v0 - Dt*v1
+      c1 = Dt*v0
       c0 = p0
 
       p_intp = c3*t**3 + c2*t**2 + c1*t + c0
-      # v_intp = 3*c3*t**2 + 2*c2*t + c1
 
       p_rot = slerp(t).as_quat()
       pnt = CartesianTrajectoryPoint()

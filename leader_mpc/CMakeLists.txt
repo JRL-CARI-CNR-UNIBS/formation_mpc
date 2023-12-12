@@ -6,37 +6,9 @@ if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-Wall -Wextra -Wpedantic)
 endif()
 
-# # ROS-related packages
-# find_package(ament_cmake                REQUIRED)
-# ## rclcpp
-# find_package(rclcpp                     REQUIRED)
-# find_package(rclcpp_lifecycle           REQUIRED)
-# find_package(rclcpp_action              REQUIRED)
-# find_package(pluginlib                  REQUIRED)
-# ## ros2_control
-# find_package(controller_interface       REQUIRED)
-# find_package(hardware_interface         REQUIRED)
-# find_package(realtime_tools             REQUIRED)
-# find_package(control_toolbox            REQUIRED)
-# ## msgs, srv
-# find_package(geometry_msgs              REQUIRED)
-# find_package(trajectory_msgs            REQUIRED)
-# find_package(formation_msgs             REQUIRED)
-# find_package(sensor_msgs                REQUIRED)
-# find_package(map_msgs                   REQUIRED)
-# find_package(moveit_msgs                REQUIRED)
-# ## tf2
-# find_package(tf2_ros                    REQUIRED)
-# find_package(tf2_eigen                  REQUIRED)
-# ## parameters
-# find_package(generate_parameter_library REQUIRED)
-#
-# find_package(formation_utils            REQUIRED)
-#
-# # Non-ROS libraries
-# find_package(Eigen3                     REQUIRED)
-# find_package(task_math                  REQUIRED)
-# find_package(rdyn_core                  REQUIRED)
+#if(CMAKE_BUILD_TYPE MATCHES "Debug")
+#  add_compile_options(-fsanitize=address -fno-sanitize=alignment)
+#endif()
 
 set(THIS_PACKAGE_ROS_LIBRARIES_DEPENDENCIES
   ament_cmake

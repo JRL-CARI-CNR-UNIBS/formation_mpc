@@ -226,27 +226,31 @@ LeaderMPC::on_configure(const rclcpp_lifecycle::State& /*state*/)
 
   m_model.init(nax, m_params.number_of_points, m_dt);
 
-  // Stack of tasks
-  m_sot.set_n_axis(nax);
-  m_sot.set_np(m_number_of_points);
-
   // Inequality array
+  m_ineq_array.clear();
   m_ineq_array.set_n_axis(nax);
   m_ineq_array.set_np(m_number_of_points);
 
-  // Create task pointers
-//  m_minimize_acc.init(&m_model);
-//  m_minimize_vel.init(&m_model);
-  m_cartesian_leader_task.init(&m_model, m_rdyn_full_chain.get(), {1,1,1,1,1,1}); // activate all cartesian axis
-  m_cartesian_leader_task.activateScaling(m_params.cartesian_task_weight.active);
-  m_cartesian_leader_task.setWeightScaling(m_params.cartesian_task_weight.weight);
-  m_cartesian_leader_task.enableClik(m_params.clik.active);
-  m_cartesian_leader_task.setWeightClik(m_params.clik.gain);
+  // Create task pointers:
+  //* Cartesian Task
+  std::vector<int> int_axis(m_params.cartesian_axis.size());
+  std::transform(m_params.cartesian_axis.begin(),m_params.cartesian_axis.end(),int_axis.begin(),
+                 [](const auto& b){return (int)b;});
+  m_task__cartesian.init(&m_model, m_rdyn_full_chain.get(), int_axis);
+  m_task__cartesian.activateScaling(m_params.cartesian_task_weight.active);
+  m_task__cartesian.setWeightScaling(m_params.cartesian_task_weight.weight);
+  m_task__cartesian.enableClik(m_params.clik.active);
+  m_task__cartesian.setWeightClik(m_params.clik.gain);
 
+  //* Joint Position
+  m_task__joint_position.init(&m_model);
+
+  // Stack of tasks
   m_sot.clear();
-  m_sot.taskPushBack(&m_cartesian_leader_task, std::pow(k_task_level_multiplier, m_params.hierarchy.at(0)-1));
-//  m_sot.taskPushBack(&m_minimize_acc, std::pow(k_task_level_multiplier, m_params.hierarchy.at(0)-1));
-  //  m_sot.taskPushBack(&m_minimize_vel, std::pow(k_task_level_multiplier, m_params.hierarchy.at(1)-1));
+  m_sot.set_n_axis(nax);
+  m_sot.set_np(m_number_of_points);
+  m_sot.taskPushBack(&m_task__cartesian,      std::pow(k_task_level_multiplier, 0));
+  m_sot.taskPushBack(&m_task__joint_position, std::pow(k_task_level_multiplier, 1));
 
   m_ub_acc.init(&m_model);
   m_lb_acc.init(&m_model);
@@ -280,13 +284,10 @@ LeaderMPC::on_configure(const rclcpp_lifecycle::State& /*state*/)
   RCLCPP_DEBUG(this->get_node()->get_logger(), "MPC config: OK");
 
   m_q__state.resize(nax);
-  m_q__cmd.resize(nax * m_number_of_points);
-  for(size_t idx = 0; idx < nax; ++idx)
-  {
-    m_q__cmd(idx) = m_params.initial_positions.at(0);
-  }
-  m_dq__cmd.resize(nax * m_number_of_points);
-  m_ddq__cmd.resize(nax * m_number_of_points);
+  m_q__start.resize(nax);
+  // m_dq__cmd.resize(nax * m_number_of_points);
+  // m_ddq__cmd.resize(nax * m_number_of_points);
+  m_q__cmd   = Eigen::VectorXd::Zero(m_nax * m_number_of_points);
   m_dq__cmd  = Eigen::VectorXd::Zero(m_nax * m_number_of_points);
   m_ddq__cmd = Eigen::VectorXd::Zero(m_nax * m_number_of_points);
 
@@ -401,6 +402,10 @@ controller_interface::return_type
 LeaderMPC::update(const rclcpp::Time & t_time, const rclcpp::Duration & /*t_period*/)
 {
 //  m_t = t_time;
+  for(size_t idx = 0; idx < m_nax; ++idx)
+  {
+    m_q__state(idx) = m_joint_position_state_interface.at(idx).get().get_value();
+  }
   if(!m_plan.available)
   {
     return controller_interface::return_type::OK;
@@ -409,10 +414,11 @@ LeaderMPC::update(const rclcpp::Time & t_time, const rclcpp::Duration & /*t_peri
   {
     m_plan.start = t_time;
     m_plan.started = true;
-  }
-  for(size_t idx = 0; idx < m_nax; ++idx)
-  {
-    m_q__state(idx) = m_joint_position_state_interface.at(idx).get().get_value();
+    for(size_t idx = 0; idx < m_nax; ++idx)
+    {
+      m_q__start(idx) = m_q__state(idx);
+      m_q__cmd(idx)   = m_q__state(idx);
+    }
   }
 
   Eigen::Affine3d target_x;
@@ -442,15 +448,27 @@ LeaderMPC::update(const rclcpp::Time & t_time, const rclcpp::Duration & /*t_peri
       m_plan.available = false;
   }
 
+
+  // Update Task references
+  /* Cartesian task */
   taskQP::math::CartesianTask* cartesian_task_ptr = dynamic_cast<taskQP::math::CartesianTask*>(m_sot.getTask(0));
   cartesian_task_ptr->setTargetTrajectory(m_target_dx, m_target_x);
   cartesian_task_ptr->setTargetScaling(1.0);
+  /* Joint position */
+  // WARNING: la libreria richiede np*nax valori. Perché?
+  Eigen::VectorXd np_q = Eigen::VectorXd(m_nax*m_number_of_points);
+  for(unsigned int idx = 0; idx < m_number_of_points; ++idx){np_q.segment(idx*m_nax, m_nax) = m_q__start;}
+  m_task__joint_position.setTargetPosition(np_q);
+  // taskQP::math::JointPositionTask* joint_position_task_ptr = dynamic_cast<taskQP::math::JointPositionTask*>(m_sot.getTask(1));
+  // joint_position_task_ptr->setTargetPosition(m_q__start);
 
 
+  // Update task
   for(size_t idx = 0; idx < m_sot.stackSize(); ++idx)
   {
     m_sot.getTask(idx)->update(m_model.getPositionPrediction(), m_model.getVelocityPrediction());
   }
+  // Update constraints
   for(size_t idx = 0; idx < m_ineq_array.arraySize(); ++idx)
   {
     m_ineq_array.getConstraint(idx)->update(m_model.getPositionPrediction(), m_model.getVelocityPrediction());
@@ -468,19 +486,15 @@ LeaderMPC::update(const rclcpp::Time & t_time, const rclcpp::Duration & /*t_peri
 
   m_scaling = m_solutions(m_nax * m_number_of_points);
 
-//  msg.positions  = std::vector<double>(m_q__cmd.data(), m_q__cmd.data() + m_q__cmd.size());
-//  msg.velocities = std::vector<double>(m_dq__cmd.data(), m_dq__cmd.data() + m_dq__cmd.size());
-
-  Eigen::VectorXd cartesian_error = cartesian_task_ptr->computeTaskError(m_target_x, m_model.getState().head(m_nax));
-  // RCLCPP_DEBUG_STREAM(get_node()->get_logger(), "Cartesian error: " << cartesian_error.transpose());
-  Eigen::VectorXd joint_error = m_q__cmd - m_q__state;
+  // Eigen::VectorXd cartesian_error = cartesian_task_ptr->computeTaskError(m_target_x, m_q__cmd);
+  // Eigen::VectorXd joint_error = m_q__cmd - m_q__state;
   for(size_t idx = 0; idx < m_nax; ++idx)
   {
 //    m_joint_velocity_command_interface.at(idx).get().set_value(m_dq__cmd(idx));
     m_joint_position_command_interface.at(idx).get().set_value(m_q__cmd(idx));
 //    m_joint_velocity_command_interface
 //        .at(idx)
-//        .get()
+//        .get()m_joint_position_state_interface.at(idx).get().get_value()
 //        .set_value(
 //          m_pid__vector.at(idx).computeCommand(joint_error(idx), m_dt) + m_dq__cmd(idx)
 //          );

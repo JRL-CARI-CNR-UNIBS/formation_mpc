@@ -41,6 +41,7 @@ def generate_launch_description():
     executable="ros2_control_node",
     parameters=[robot_description, mpc_param],
     output="screen",
+#    prefix=['valgrind --leak-check=yes --keep-debuginfo=yes -q --num-callers']
     )
 
   spawn_controller_mpc = Node(

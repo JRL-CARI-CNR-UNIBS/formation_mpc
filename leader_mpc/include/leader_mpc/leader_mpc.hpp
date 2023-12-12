@@ -135,6 +135,7 @@ protected:
   unsigned int m_nax_base;
 
   Eigen::VectorXd m_q__state;
+  Eigen::VectorXd m_q__start;
 
   // Eigen::VectorXd m_q;
   // Eigen::VectorXd m_dq;
@@ -214,9 +215,8 @@ protected:
   taskQP::math::virtualModel                      m_model;
 
   //** Tasks **//
-  taskQP::math::MinimizeAcceleration          m_minimize_acc;
-//  taskQP::math::MinimizeVelocity              m_minimize_vel;
-  taskQP::math::CartesianTask                 m_cartesian_leader_task;
+  taskQP::math::JointPositionTask             m_task__joint_position;
+  taskQP::math::CartesianTask                 m_task__cartesian;
 
   //** Limits **//
   taskQP::math::UpperAccelerationLimits             m_ub_acc;
