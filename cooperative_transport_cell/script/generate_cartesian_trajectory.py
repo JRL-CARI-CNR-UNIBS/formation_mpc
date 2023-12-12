@@ -7,7 +7,7 @@ from rclpy.duration import Duration
 from std_srvs.srv import Trigger
 from formation_msgs.action import FollowFormationLeaderTrajectory
 import tf2_ros
-from geometry_msgs.msg import TransformStamped, Pose, Quaternion
+from geometry_msgs.msg import TransformStamped, Pose, Quaternion, TwistStamped, PoseStamped
 from moveit_msgs.msg import CartesianTrajectory, CartesianTrajectoryPoint
 import numpy as np
 import matplotlib.pyplot as plt
@@ -29,7 +29,9 @@ class TrajectoryCreation(Node):
     self.tf_buffer = tf2_ros.Buffer()
     self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self)
 
-    self.trj__pub: Publisher = self.create_publisher(msg_type=CartesianTrajectory, topic="/cartesian_trajectory",qos_profile=1)
+    self.trj__pub: Publisher    = self.create_publisher(msg_type=CartesianTrajectory, topic="/cartesian_trajectory",qos_profile=1)
+    self.interp__pub: Publisher = self.create_publisher(msg_type=TwistStamped, topic="/trj_vel", qos_profile=10)
+    self.p_interp__pub: Publisher = self.create_publisher(msg_type=PoseStamped, topic="/trj_pose", qos_profile=10)
 
     self.rng = np.random.default_rng()
 
@@ -38,6 +40,7 @@ class TrajectoryCreation(Node):
     world_frame = self.get_parameter('world_frame').value
     axis = self.get_parameter('axis').value
     duration = self.get_parameter('duration').value
+    print(f"duration: {duration}s")
 
     final_pose_delta = np.array([self.rng.choice([-1,1]) * (self.rng.random()*self.max_delta[idx]) * ax for idx, ax in enumerate(axis)])
     print(f"delta: {final_pose_delta[:3]}")
@@ -69,6 +72,7 @@ class TrajectoryCreation(Node):
     
     plot_trj(trj)
     self.trj__pub.publish(trj)
+
     goal_trj = FollowFormationLeaderTrajectory.Goal()
     goal_trj.payload_cartesian_trajectory = trj
 
@@ -82,12 +86,15 @@ class TrajectoryCreation(Node):
 
   def interpolate(self, t_p0, t_p1, t_rot0: Rotation, t_rot1: Rotation, t_duration) -> CartesianTrajectory:
     n = 20
+    assert(n > 2)
     all_t = np.linspace(0, t_duration, n)
     dt = all_t[1] - all_t[0]
     p0 = t_p0
     p1 = t_p1
-    v0 = np.random.random(size=(3,)) # np.array([0,0,0])
-    v1 = np.random.random(size=(3,)) # np.array([0,0,0])
+    v0 = np.array([0,0,0])
+    v1 = np.array([0,0,0])
+    # v0 = np.random.random(size=(3,)) # np.array([0,0,0])
+    # v1 = np.random.random(size=(3,)) # np.array([0,0,0])
     # t = 0.1
 
     # p_intp = np.zeros([n,3])
@@ -103,7 +110,8 @@ class TrajectoryCreation(Node):
       c0 = p0
 
       p_intp = c3*t**3 + c2*t**2 + c1*t + c0
-      v_intp = 3*c3*t**2 + 2*c2*t + c1
+      # v_intp = 3*c3*t**2 + 2*c2*t + c1
+
       p_rot = slerp(t).as_quat()
       pnt = CartesianTrajectoryPoint()
       pnt.time_from_start = Duration(seconds=time).to_msg()
@@ -119,17 +127,45 @@ class TrajectoryCreation(Node):
       pnt.point.pose.orientation.z = t_rot0.as_quat()[2]
       pnt.point.pose.orientation.w = t_rot0.as_quat()[3]
 
-      pnt.point.velocity.linear.x = v_intp[0]
-      pnt.point.velocity.linear.y = v_intp[1]
-      pnt.point.velocity.linear.z = v_intp[2]
-      pnt.point.velocity.angular.x = 0.0 # ang_vel[0]
-      pnt.point.velocity.angular.y = 0.0 # ang_vel[1]
-      pnt.point.velocity.angular.z = 0.0 # ang_vel[2]
+      msg2: PoseStamped = PoseStamped()
+      msg2.header.stamp = rclpy.time.Time(seconds=time).to_msg()
+      msg2.pose.position.x = p_intp[0]
+      msg2.pose.position.y = p_intp[1]
+      msg2.pose.position.z = p_intp[2]
+      self.p_interp__pub.publish(msg2)
+
       trj.points.append(pnt)
-      p_rot_old = p_rot
+
+    for idx, time in enumerate(all_t):
+      v_intp = np.array([0.0,0.0,0.0])
+      if(idx == 0):
+        v_intp[0] = (trj.points[1].point.pose.position.x - trj.points[0].point.pose.position.x)/(all_t[1] - all_t[0])/2
+        v_intp[1] = (trj.points[1].point.pose.position.y - trj.points[0].point.pose.position.y)/(all_t[1] - all_t[0])/2
+        v_intp[2] = (trj.points[1].point.pose.position.z - trj.points[0].point.pose.position.z)/(all_t[1] - all_t[0])/2
+      elif(idx == len(all_t)-1):
+        v_intp[0] = (trj.points[-1].point.pose.position.x - trj.points[-2].point.pose.position.x)/(all_t[-1] - all_t[-2])/2
+        v_intp[1] = (trj.points[-1].point.pose.position.y - trj.points[-2].point.pose.position.y)/(all_t[-1] - all_t[-2])/2
+        v_intp[2] = (trj.points[-1].point.pose.position.z - trj.points[-2].point.pose.position.z)/(all_t[-1] - all_t[-2])/2
+      else:
+        v_intp[0] = ((trj.points[idx+1].point.pose.position.x - trj.points[idx].point.pose.position.x)/(all_t[idx+1] - all_t[idx]) + (trj.points[idx].point.pose.position.x - trj.points[idx-1].point.pose.position.x)/(all_t[idx] - all_t[idx-1]))/2
+        v_intp[1] = ((trj.points[idx+1].point.pose.position.y - trj.points[idx].point.pose.position.y)/(all_t[idx+1] - all_t[idx]) + (trj.points[idx].point.pose.position.y - trj.points[idx-1].point.pose.position.y)/(all_t[idx] - all_t[idx-1]))/2
+        v_intp[2] = ((trj.points[idx+1].point.pose.position.z - trj.points[idx].point.pose.position.z)/(all_t[idx+1] - all_t[idx]) + (trj.points[idx].point.pose.position.z - trj.points[idx-1].point.pose.position.z)/(all_t[idx] - all_t[idx-1]))/2
+      trj.points[idx].point.velocity.linear.x = v_intp[0]
+      trj.points[idx].point.velocity.linear.y = v_intp[1]
+      trj.points[idx].point.velocity.linear.z = v_intp[2]
+      trj.points[idx].point.velocity.angular.x = 0.0 # ang_vel[0]
+      trj.points[idx].point.velocity.angular.y = 0.0 # ang_vel[1]
+      trj.points[idx].point.velocity.angular.z = 0.0 # ang_vel[2]
     
+      msg: TwistStamped = TwistStamped()
+      msg.header.stamp = rclpy.time.Time(seconds=time).to_msg()
+      msg.twist.linear.x = v_intp[0]
+      msg.twist.linear.y = v_intp[1]
+      msg.twist.linear.z = v_intp[2]
+      self.interp__pub.publish(msg)
+
     return trj
-      
+
 def plot_trj(trj: CartesianTrajectory):
   print("Plotting...")
   ax = plt.figure().add_subplot(projection='3d')

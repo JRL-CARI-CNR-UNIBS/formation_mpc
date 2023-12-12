@@ -216,12 +216,11 @@ LeaderMPC::on_configure(const rclcpp_lifecycle::State& /*state*/)
   RCLCPP_DEBUG(this->get_node()->get_logger(), "Rdyn: OK");
 
   RCLCPP_DEBUG(this->get_node()->get_logger(), "MPC config: start");
-  m_control_horizon_in_ms = m_params.control_horizon_in_ms;
+  m_control_horizon_in_s = m_params.control_horizon_in_s;
   m_number_of_points = m_params.number_of_points;
   int nax = m_rdyn_full_chain->getActiveJointsNumber();
   m_nax = nax;
-  m_model.setPredictiveHorizon(m_control_horizon_in_ms);
-  m_prediction_horizon = m_params.prediction_horizon;
+  m_model.setPredictiveHorizon(m_control_horizon_in_s);
   m_model.setSamplingPeriod(m_params.dt);
   m_dt = m_params.dt;
 
@@ -239,10 +238,10 @@ LeaderMPC::on_configure(const rclcpp_lifecycle::State& /*state*/)
 //  m_minimize_acc.init(&m_model);
 //  m_minimize_vel.init(&m_model);
   m_cartesian_leader_task.init(&m_model, m_rdyn_full_chain.get(), {1,1,1,1,1,1}); // activate all cartesian axis
-  m_cartesian_leader_task.activateScaling(m_params.scaling.active);
-  m_cartesian_leader_task.setWeightScaling(1e-3);
-  m_cartesian_leader_task.enableClik(true);
-  m_cartesian_leader_task.setWeightClik(m_params.clik_gain);
+  m_cartesian_leader_task.activateScaling(m_params.cartesian_task_weight.active);
+  m_cartesian_leader_task.setWeightScaling(m_params.cartesian_task_weight.weight);
+  m_cartesian_leader_task.enableClik(m_params.clik.active);
+  m_cartesian_leader_task.setWeightClik(m_params.clik.gain);
 
   m_sot.clear();
   m_sot.taskPushBack(&m_cartesian_leader_task, std::pow(k_task_level_multiplier, m_params.hierarchy.at(0)-1));
@@ -268,7 +267,7 @@ LeaderMPC::on_configure(const rclcpp_lifecycle::State& /*state*/)
   m_ub_inv.setLimits( m_rdyn_full_chain->getQMax(), m_rdyn_full_chain->getDQMax(), -m_rdyn_full_chain->getDDQMax());
   m_lb_pos.setLimits( m_rdyn_full_chain->getQMin());
   m_lb_inv.setLimits( m_rdyn_full_chain->getQMin(), -m_rdyn_full_chain->getDQMax(), m_rdyn_full_chain->getDDQMax());
-  m_max_scaling.setLimits(m_params.scaling.limit);
+  m_max_scaling.setLimits(m_params.scaling);
   m_ineq_array.addConstraint(&m_lb_inv);
   m_ineq_array.addConstraint(&m_lb_pos);
   m_ineq_array.addConstraint(&m_ub_inv);
@@ -279,7 +278,6 @@ LeaderMPC::on_configure(const rclcpp_lifecycle::State& /*state*/)
   m_ineq_array.addConstraint(&m_ub_acc);
   m_ineq_array.addConstraint(&m_max_scaling);
   RCLCPP_DEBUG(this->get_node()->get_logger(), "MPC config: OK");
-
 
   m_q__state.resize(nax);
   m_q__cmd.resize(nax * m_number_of_points);
@@ -320,6 +318,9 @@ LeaderMPC::on_configure(const rclcpp_lifecycle::State& /*state*/)
   m_joint_position_command_interface.clear();
   m_joint_position_state_interface.clear();
   m_joint_velocity_state_interface.clear();
+
+  // DEBUG
+  m_pose_target__pub = this->get_node()->create_publisher<geometry_msgs::msg::PoseStamped>("target_pose",10);
 
   RCLCPP_INFO(this->get_node()->get_logger(), "configure successful");
   return CallbackReturn::SUCCESS;
@@ -392,29 +393,13 @@ LeaderMPC::on_deactivate(const rclcpp_lifecycle::State& /*state*/)
 void
 LeaderMPC::set_plan(const moveit_msgs::msg::CartesianTrajectory& trj)
 {
-  size_t size = trj.points.size();
-  m_plan.clear();
-  m_plan.resize(size);
-  for(size_t idx = 0; idx < size; ++idx)
-  {
-    tf2::fromMsg(trj.points.at(idx).point.pose, m_plan.pose.at(idx));
-    tf2::fromMsg(trj.points.at(idx).point.velocity, m_plan.twist.at(idx));
-//    tf2::fromMsg(trj.points.at(idx).point.acceleration, m_plan.acc.at(idx));
-    m_plan.time.at(idx) = rclcpp::Time(trj.points.at(idx).time_from_start.sec,
-                                       trj.points.at(idx).time_from_start.nanosec);
-    RCLCPP_DEBUG_STREAM(get_node()->get_logger(), "pos  -> " << m_plan.pose.at(idx).translation().transpose() << "\n" <<
-                                                  "vel  -> " << m_plan.twist.at(idx).transpose() << "\n" <<
-                                                  "time -> " << m_plan.time.at(idx).seconds());
-  }
-  RCLCPP_INFO(this->get_node()->get_logger(), "New plan received");
-  m_plan.started = false;
-  m_plan.available = true;
+  m_interpolator = utils::Interpolator::from_msg(trj, &m_plan);
 }
 
 controller_interface::return_type
 LeaderMPC::update(const rclcpp::Time & t_time, const rclcpp::Duration & /*t_period*/)
 {
-  m_t = t_time;
+//  m_t = t_time;
   if(!m_plan.available)
   {
     return controller_interface::return_type::OK;
@@ -433,14 +418,27 @@ LeaderMPC::update(const rclcpp::Time & t_time, const rclcpp::Duration & /*t_peri
   Eigen::Vector6d target_dx;
   for(size_t idx = 0; idx < m_number_of_points; ++idx)
   {
-    interpolate(m_t, m_plan.start, target_dx, target_x);
+    target_x.setIdentity();
+    target_dx.setZero();
+    m_interpolator.interpolate(t_time + rclcpp::Duration::from_seconds(m_model.getPredictionTimes()(idx)), m_plan.start, target_dx, target_x);
     m_target_dx.segment<6>(idx*6) = target_dx;
-    if(idx == 0) m_target_x = target_x;
+    if(idx == 0)
+    {
+      m_target_x = target_x;
+      geometry_msgs::msg::PoseStamped msg;
+      msg.header.stamp = t_time;
+      msg.pose = tf2::toMsg(target_x);
+      m_pose_target__pub->publish(msg);
+    }
+  }
+  if((t_time - m_plan.start).seconds() >= m_plan.time.back().seconds())
+  {
+      m_plan.available = false;
   }
 
   taskQP::math::CartesianTask* cartesian_task_ptr = dynamic_cast<taskQP::math::CartesianTask*>(m_sot.getTask(0));
   cartesian_task_ptr->setTargetTrajectory(m_target_dx, m_target_x);
-//  cartesian_task_ptr->setTargetScaling(1.0);
+  cartesian_task_ptr->setTargetScaling(1.0);
 
 
   for(size_t idx = 0; idx < m_sot.stackSize(); ++idx)
@@ -462,11 +460,13 @@ LeaderMPC::update(const rclcpp::Time & t_time, const rclcpp::Duration & /*t_peri
   m_dq__cmd  = m_model.getState().tail(m_nax);
   m_q__cmd   = m_model.getState().head(m_nax);
 
+  m_scaling = m_solutions(m_nax * m_number_of_points);
+
 //  msg.positions  = std::vector<double>(m_q__cmd.data(), m_q__cmd.data() + m_q__cmd.size());
 //  msg.velocities = std::vector<double>(m_dq__cmd.data(), m_dq__cmd.data() + m_dq__cmd.size());
 
   Eigen::VectorXd cartesian_error = cartesian_task_ptr->computeTaskError(m_target_x, m_model.getState().head(m_nax));
-
+  // RCLCPP_DEBUG_STREAM(get_node()->get_logger(), "Cartesian error: " << cartesian_error.transpose());
   Eigen::VectorXd joint_error = m_q__cmd - m_q__state;
   for(size_t idx = 0; idx < m_nax; ++idx)
   {
@@ -486,71 +486,21 @@ LeaderMPC::update(const rclcpp::Time & t_time, const rclcpp::Duration & /*t_peri
   return controller_interface::return_type::OK;
 }
 
-void
-LeaderMPC::interpolate(const rclcpp::Time& t_t,
-                       const rclcpp::Time& t_start,
-                       Eigen::Vector6d& interp_vel,
-                       Eigen::Affine3d& out)
-{
-  rclcpp::Duration T = t_t - t_start;
-  rclcpp::Time t_now = rclcpp::Time(T.nanoseconds());
-  for(size_t idx = 1; idx < m_plan.time.size(); idx++)
-  {
-    if(!(    ((t_now - m_plan.time.at(idx)).seconds() < 0)
-          && ((t_now - m_plan.time.at(idx-1)).seconds() >= 0)
-         )
-       )
-    {
-      continue;
-    }
-    RCLCPP_DEBUG(get_node()->get_logger(), "T -> %f\nt_now -> %f\nidx -> %ld\nm_plan.time.at(idx) -> %f",
-                 T.seconds(), t_now.seconds(), idx, m_plan.time.at(idx).seconds());
-    double delta_time = (m_plan.time.at(idx) - m_plan.time.at(idx-1)).seconds();
-    double t = (t_now - m_plan.time.at(idx-1)).seconds();
-    double ratio = t / delta_time;
-    Eigen::Isometry3d pose_interp;
-
-    const Eigen::Vector3d p0 = m_plan.pose.at(idx-1).translation();
-    const Eigen::Vector3d p1 = m_plan.pose.at(idx).translation();
-    const Eigen::Vector3d v0 = m_plan.twist.at(idx-1).head<3>();
-    const Eigen::Vector3d v1 = m_plan.twist.at(idx).head<3>();
-
-    interp_vel.head<3>() =   3 * (2*p0 + v0 - 2*p1 + v1) * std::pow(t,2)
-                           + 2 * (-3*p0 + 3*p1 - 2*v0 - v1) * t
-                           + v0;
-//    interp_vel.tail<3>() = ratio * m_plan.twist.at(idx).tail<3>() + (1-ratio) * m_plan.twist.at(idx-1).tail<3>();
-    interp_vel.tail<3>() = Eigen::Vector3d::Zero(3,1);
-
-    double h00, h01, h10, h11;
-    h00 = 2*std::pow(ratio,3) - 3*std::pow(ratio,2) + 1;
-    h10 = std::pow(ratio,3) - 2*std::pow(ratio,2) + ratio;
-    h01 = -2*std::pow(ratio,3) + 3*std::pow(ratio,2);
-    h11 = std::pow(ratio,3) - std::pow(ratio,2);
-    out.translation() =   h00 * m_plan.pose.at(idx-1).translation()
-                                + h10 * m_plan.twist.at(idx-1).head<3>()
-                                + h01 * m_plan.pose.at(idx).translation()
-                                + h11 * m_plan.twist.at(idx).head<3>();
-//    out.linear() = Eigen::Quaterniond(m_plan.pose.at(idx-1).linear()).slerp(ratio, Eigen::Quaterniond(m_plan.pose.at(idx).linear())).toRotationMatrix();
-    out.linear() = m_plan.pose.at(0).linear();
-    break;
-  }
-}
-
 rclcpp_action::GoalResponse
 LeaderMPC::handle_goal__cb(const rclcpp_action::GoalUUID & uuid,
-                       std::shared_ptr<const FollowFormationTrajectory::Goal> goal)
+                       std::shared_ptr<const FollowFormationTrajectory::Goal> /*goal*/)
 {
   RCLCPP_INFO(this->get_node()->get_logger(), "Received goal request");
   if (this->get_node()->get_current_state().label() != "active")
   {
     RCLCPP_ERROR(this->get_node()->get_logger(), "Cannot accept request. Lifecycle state: %s", this->get_node()->get_current_state().label().c_str());
 //    return rclcpp_action::GoalResponse::ACCEPT_AND_EXECUTE;
-    rclcpp_action::GoalResponse::REJECT;
+    return rclcpp_action::GoalResponse::REJECT;
   }
   else if (m_is_there_goal_active)
   {
     RCLCPP_ERROR(this->get_node()->get_logger(), "Goal active. Cannot be overwritten");
-    rclcpp_action::GoalResponse::REJECT;
+    return rclcpp_action::GoalResponse::REJECT;
   }
   else
   {

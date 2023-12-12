@@ -6,69 +6,83 @@ if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-Wall -Wextra -Wpedantic)
 endif()
 
-# ROS-related packages
-find_package(ament_cmake                REQUIRED)
-## rclcpp
-find_package(rclcpp                     REQUIRED)
-find_package(rclcpp_lifecycle           REQUIRED)
-find_package(rclcpp_action              REQUIRED)
-find_package(pluginlib                  REQUIRED)
-## ros2_control
-find_package(controller_interface       REQUIRED)
-find_package(hardware_interface         REQUIRED)
-find_package(realtime_tools             REQUIRED)
-find_package(control_toolbox            REQUIRED)
-## msgs, srv
-find_package(geometry_msgs              REQUIRED)
-find_package(trajectory_msgs            REQUIRED)
-find_package(formation_msgs             REQUIRED)
-find_package(sensor_msgs                REQUIRED)
-find_package(map_msgs                   REQUIRED)
-find_package(moveit_msgs                REQUIRED)
-## tf2
-find_package(tf2_ros                    REQUIRED)
-find_package(tf2_eigen                  REQUIRED)
-## parameters
-find_package(generate_parameter_library REQUIRED)
-
-# Non-ROS libraries
-find_package(Eigen3                     REQUIRED)
-find_package(task_math                  REQUIRED)
-find_package(rdyn_core                  REQUIRED)
-
-
-generate_parameter_library(leader_mpc_parameters # cmake target name for the parameter library
-  config/parameters_definition.yaml # path to input yaml file
-)
+# # ROS-related packages
+# find_package(ament_cmake                REQUIRED)
+# ## rclcpp
+# find_package(rclcpp                     REQUIRED)
+# find_package(rclcpp_lifecycle           REQUIRED)
+# find_package(rclcpp_action              REQUIRED)
+# find_package(pluginlib                  REQUIRED)
+# ## ros2_control
+# find_package(controller_interface       REQUIRED)
+# find_package(hardware_interface         REQUIRED)
+# find_package(realtime_tools             REQUIRED)
+# find_package(control_toolbox            REQUIRED)
+# ## msgs, srv
+# find_package(geometry_msgs              REQUIRED)
+# find_package(trajectory_msgs            REQUIRED)
+# find_package(formation_msgs             REQUIRED)
+# find_package(sensor_msgs                REQUIRED)
+# find_package(map_msgs                   REQUIRED)
+# find_package(moveit_msgs                REQUIRED)
+# ## tf2
+# find_package(tf2_ros                    REQUIRED)
+# find_package(tf2_eigen                  REQUIRED)
+# ## parameters
+# find_package(generate_parameter_library REQUIRED)
+#
+# find_package(formation_utils            REQUIRED)
+#
+# # Non-ROS libraries
+# find_package(Eigen3                     REQUIRED)
+# find_package(task_math                  REQUIRED)
+# find_package(rdyn_core                  REQUIRED)
 
 set(THIS_PACKAGE_ROS_LIBRARIES_DEPENDENCIES
   ament_cmake
+  ## rclcpp
   rclcpp
   rclcpp_lifecycle
   rclcpp_action
   pluginlib
+  ## ros2_control
+  controller_interface
+  hardware_interface
+  realtime_tools
+  control_toolbox
+  ## interfaces (msg, srv, action)
   geometry_msgs
   trajectory_msgs
   sensor_msgs
   map_msgs
-  formation_msgs
   moveit_msgs
+  formation_msgs
+  ## tf2
   tf2_ros
   tf2_eigen
+  ## utils
+  formation_utils
+  ## Misc
   Eigen3
-  task_math
-  hardware_interface
-  controller_interface
-  realtime_tools
-  control_toolbox
   )
 
 set(THIS_PACKAGE_NON_ROS_LIBRARIES_DEPENDENCIES
-  rdyn_core)
+  rdyn_core
+  task_math)
 
 set(THIS_PACKAGE_LIBRARIES_DEPENDENCIES
   ${THIS_PACKAGE_ROS_LIBRARIES_DEPENDENCIES}
   ${THIS_PACKAGE_NON_ROS_LIBRARIES_DEPENDENCIES})
+
+foreach(package IN ITEMS ${THIS_PACKAGE_LIBRARIES_DEPENDENCIES})
+  find_package(${package} REQUIRED)
+endforeach()
+
+find_package(generate_parameter_library REQUIRED)
+
+generate_parameter_library(leader_mpc_parameters # cmake target name for the parameter library
+  config/parameters_definition.yaml # path to input yaml file
+)
   
 list(APPEND ${PROJECT_NAME}_ADD_HPP # Only for IDE project visualization
   include/${PROJECT_NAME}/leader_mpc.hpp

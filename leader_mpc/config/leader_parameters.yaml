@@ -1,6 +1,6 @@
 controller_manager:
   ros__parameters:
-    update_rate: 100
+    update_rate: 50
 
     leader_mpc:
       type: formation_mpc/LeaderMPC
@@ -24,12 +24,13 @@ leader_joint_bcast:
 
 leader_mpc: # TODO: guarda ??
   ros__parameters:
-    control_horizon_in_ms: 50.0
-    prediction_horizon: 5
-    number_of_points: 2
+    control_horizon_in_s: 1.0
+    number_of_points: 3
     dt: 0.01
     formation_dt: 0.1
-    click_gain: 1
+    clik:
+      gain: 1.0
+      active: False
     pid:
       P: [1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0]
     action_monitor_rate: 100.0
@@ -66,13 +67,11 @@ leader_mpc: # TODO: guarda ??
     state_interface:
       - "position"
       - "velocity"
-    # robot_description_topic: "robot_description"
-    # robot_description: ## from launcher
     cmd_vel_topic: "cmd_vel"
-    # cmd_trj_topic: ## default
-    scaling:
+    cartesian_task_weight:
       active: true
-      limit: 2.0
+      weight: 2.0
+    scaling: 1.0
     hierarchy: [1,2,3]
     trj_leader_topic: "trj_share"
     plan_topic: "/plan"

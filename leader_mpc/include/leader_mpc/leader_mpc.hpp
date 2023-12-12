@@ -1,6 +1,8 @@
 #ifndef LEADER_MPC_HPP
 #define LEADER_MPC_HPP
 
+#include "formation_utils/utils.hpp"
+
 #include <map>
 #include <vector>
 #include <chrono>
@@ -117,29 +119,7 @@ protected:
   rclcpp::Time m_t {0};
   rclcpp::Time t_start {0};
 
-  struct Trajectory{
-    std::vector<Eigen::Affine3d> pose;
-    std::vector<Eigen::Vector6d> twist;
-    std::vector<Eigen::Vector6d> acc;
-    std::vector<rclcpp::Time> time;
-    rclcpp::Time start;
-    bool started;
-    bool available {false};
-    void clear()
-    {
-      pose.clear();
-      twist.clear();
-      acc.clear();
-      time.clear();
-    }
-    void resize(long n)
-    {
-      pose.resize(n);
-      twist.resize(n);
-      acc.resize(n);
-      time.resize(n);
-    }
-  } m_plan;
+  utils::Trajectory m_plan;
 
   std::vector<geometry_msgs::msg::PoseStamped> m_plan_timed;
 
@@ -173,6 +153,9 @@ protected:
   rclcpp::Subscription<std_msgs::msg::String>::SharedPtr          robot_description__sub;
   rclcpp::Subscription<sensor_msgs::msg::JointState>::SharedPtr   m_joint_state__sub;
 
+  // Debug publishers
+  rclcpp::Publisher<geometry_msgs::msg::PoseStamped>::SharedPtr   m_pose_target__pub;
+
   // Actions
   rclcpp_action::Server<FollowFormationTrajectory>::SharedPtr m_trj_server__action;
   rclcpp_action::CancelResponse handle_cancel__cb(const std::shared_ptr<rclcpp_action::ServerGoalHandle<FollowFormationTrajectory>> goal_handle);
@@ -202,11 +185,13 @@ protected:
   bool m_is_omni {false};
 
   // MPC parameters
-  double m_control_horizon_in_ms;
-  unsigned int m_prediction_horizon;
+  double m_control_horizon_in_s;
+  // unsigned int m_prediction_horizon;
   unsigned int m_number_of_points;
   double m_clik_gain;
   double m_dt;
+
+  utils::Interpolator m_interpolator;
 
   // rdyn parameters
   Eigen::Vector3d m_gravity {0, 0, -9.80665};
@@ -214,6 +199,9 @@ protected:
 
   // HQP solution
   Eigen::VectorXd       m_solutions;
+
+  // Scaling
+  double m_scaling {1.0};
 
   // Stack of tasks
   taskQP::math::TaskStack                           m_sot;
@@ -245,7 +233,6 @@ protected:
   Params m_params;
   void declare_parameters ();
   bool read_parameters    ();
-  void interpolate(const rclcpp::Time& t_t, const rclcpp::Time& t_start, Eigen::Vector6d& interp_vel, Eigen::Affine3d& out);
 };
 } // formation_mpc
 //PLUGINLIB_EXPORT_CLASS;

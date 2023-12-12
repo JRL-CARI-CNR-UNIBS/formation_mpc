@@ -1,21 +1,14 @@
 formation_mpc: # defined per generate_parameter_library
-  control_horizon_in_ms: {
+  control_horizon_in_s: {
     type: double,
     default_value: 1,
     validation: {
       gt<>: 0
     }
   }
-  prediction_horizon: {
-    type: int,
-    default_value: 5,
-    validation: {
-      gt<>: 0
-    }
-  }
   number_of_points: {
     type: int,
-    default_value: 1,
+    default_value: 0,
     validation: {
       gt<>: 0
     }
@@ -44,13 +37,19 @@ formation_mpc: # defined per generate_parameter_library
       gt<>: 0.0
     }
   }
-  clik_gain: {
-    type: double,
-    default_value: 1.0,
-    validation: {
-      gt_eq<>: 0.0
+  clik:
+    active: {
+      type: bool,
+      default_value: True,
+      description: "Activate or deactivate clik"
     }
-  }
+    gain: {
+      type: double,
+      default_value: 1.0,
+      validation: {
+        gt_eq<>: 0.0
+      }
+    }
   pid:
     P: {
       type: double_array,
@@ -135,13 +134,13 @@ formation_mpc: # defined per generate_parameter_library
     default_value: "joint_trajectory_controller/joint_trajectory",
     description: "Topic of the joint_trajectory_controller",
   }
-  scaling:
+  cartesian_task_weight:
     active: {
       type: bool,
       default_value: false,
       description: "activate or deactivate scaling for cartesian task: ||J*qp-s*V||^2 + ||1-s||^2"
     }
-    limit: {
+    weight: {
       type: double,
       default_value: 1.0,
       description: "Scaling maximum value",
@@ -149,6 +148,11 @@ formation_mpc: # defined per generate_parameter_library
         lt_eq<>: 2.0
       }
     }
+  scaling: {
+    type: double,
+    default_value: 1.0,
+    description: "Scaling limit"
+  }
   hierarchy: {
     type: int_array,
     default_value: [1,2,3],
