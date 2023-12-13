@@ -12,15 +12,9 @@
 
 #include <Eigen/Core>
 #include <Eigen/Geometry>
-#include <Eigen/SVD>
 
 #include <rclcpp/rclcpp.hpp>
-#include <rclcpp/wait_for_message.hpp>
 #include <rclcpp_action/rclcpp_action.hpp>
-
-//#include <rclcpp_lifecycle/state.hpp>
-//#include <rclcpp_lifecycle/lifecycle_node.hpp>
-//#include <rclcpp_lifecycle/node_interfaces/lifecycle_node_interface.hpp>
 
 #include <controller_interface/controller_interface.hpp>
 #include <controller_interface/helpers.hpp>
@@ -29,8 +23,6 @@
 #include <realtime_tools/realtime_buffer.h>
 #include <realtime_tools/realtime_publisher.h>
 #include <realtime_tools/realtime_server_goal_handle.h>
-
-//#include <hardware_interface/types/hardware_interface_type_values.hpp>
 
 #include <task_math/task_math.h>
 #include <task_math/common_limits.h>
@@ -51,8 +43,6 @@
 #include <geometry_msgs/msg/twist_stamped.hpp>
 #include <moveit_msgs/msg/cartesian_trajectory.hpp>
 #include <sensor_msgs/msg/joint_state.hpp>
-
-#include <std_msgs/msg/float64_multi_array.hpp>
 
 #include "formation_msgs/msg/trj_optim_results.hpp"
 #include "formation_msgs/action/follow_formation_leader_trajectory.hpp"
