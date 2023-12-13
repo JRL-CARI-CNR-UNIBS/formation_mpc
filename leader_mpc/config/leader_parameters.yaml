@@ -30,7 +30,7 @@ leader_mpc: # TODO: guarda ??
     formation_dt: 0.1
     cartesian_axis: [true, true, true, true, true, true]
     clik:
-      gain: 1.0
+      gain: 2.0
       active: true
     pid:
       P: [1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0]
@@ -41,27 +41,28 @@ leader_mpc: # TODO: guarda ??
     tool_frame: "ur/tool0"
     map_frame: "map"
     mount_frame: "mount_frame"
-    joints:
-      - "joint_x"
-      - "joint_y"
-      - "joint_rz"
-      - "ur/shoulder_pan_joint"
-      - "ur/shoulder_lift_joint"
-      - "ur/elbow_joint"
-      - "ur/wrist_1_joint"
-      - "ur/wrist_2_joint"
-      - "ur/wrist_3_joint"
-#    base_joints:
+#    joints:
 #      - "joint_x"
 #      - "joint_y"
 #      - "joint_rz"
-#    arm_joints:
 #      - "ur/shoulder_pan_joint"
 #      - "ur/shoulder_lift_joint"
 #      - "ur/elbow_joint"
 #      - "ur/wrist_1_joint"
 #      - "ur/wrist_2_joint"
 #      - "ur/wrist_3_joint"
+    joints:
+      base:
+        - "joint_x"
+        - "joint_y"
+        - "joint_rz"
+      arm:
+        - "ur/shoulder_pan_joint"
+        - "ur/shoulder_lift_joint"
+        - "ur/elbow_joint"
+        - "ur/wrist_1_joint"
+        - "ur/wrist_2_joint"
+        - "ur/wrist_3_joint"
     initial_positions:
       - 0.0
       - 0.0
@@ -81,7 +82,7 @@ leader_mpc: # TODO: guarda ??
     cmd_vel_topic: "cmd_vel"
     cartesian_task_weight:
       active: true
-      weight: 2.0
+      weight: 1.0
     scaling: 1.0
     trj_leader_topic: "trj_share"
     plan_topic: "/plan"

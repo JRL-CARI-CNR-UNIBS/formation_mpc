@@ -104,22 +104,17 @@ formation_mpc: # defined per generate_parameter_library
     default_value: "",
     description: "Robot description"
   }
-  joints: {
-    type: string_array,
-    default_value: [],
-    description: "Name of the joints to control"
-  }
-#  joints:
-#    base: {
-#      type: string_array,
-#      default_value: [],
-#      description: "Which joints belong to the mobile base"
-#    }
-#    arm: {
-#      type: string_array,
-#      default_value: [],
-#      description: "Which joints belong to the arm"
-#    }
+  joints:
+    base: {
+      type: string_array,
+      default_value: [],
+      description: "Which joints belong to the mobile base"
+    }
+    arm: {
+      type: string_array,
+      default_value: [],
+      description: "Which joints belong to the arm"
+    }
   initial_positions: {
     type: double_array,
     default_value: [],

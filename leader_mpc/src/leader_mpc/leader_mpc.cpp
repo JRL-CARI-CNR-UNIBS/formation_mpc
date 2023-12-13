@@ -135,7 +135,10 @@ LeaderMPC::on_configure(const rclcpp_lifecycle::State& /*state*/)
     return CallbackReturn::ERROR;
   }; //TODO: boh...
 
-  m_joint_names = m_params.joints;
+  m_joint_base_names = m_params.joints.base;
+  m_joint_arm_names  = m_params.joints.arm;
+  m_joint_names = m_joint_base_names;
+  m_joint_names.insert(m_joint_names.end(), m_joint_arm_names.begin(), m_joint_arm_names.end());
   for(auto& cmd_iface : m_params.command_interface)
   {
     m_command_interface_types.push_back(cmd_iface);
@@ -147,9 +150,10 @@ LeaderMPC::on_configure(const rclcpp_lifecycle::State& /*state*/)
 
   m_robot_description = m_params.robot_description;
 
-  if(m_params.initial_positions.size() != m_params.joints.size())
+  if(m_params.initial_positions.size() != m_joint_names.size())
   {
-    RCLCPP_ERROR(this->get_node()->get_logger(), "Parameters: initial position size =/= joints size");
+    RCLCPP_ERROR(this->get_node()->get_logger(), "Parameters: initial position size (%ld) =/= joints size (%ld)",
+                 m_params.initial_positions.size(), m_joint_names.size());
     return CallbackReturn::ERROR;
   }
 
@@ -211,7 +215,7 @@ LeaderMPC::on_configure(const rclcpp_lifecycle::State& /*state*/)
 
   std::string e;
   // FIXME: ricontrolla a cosa serve rdyn::chain->setInputJointsName
-  m_rdyn_full_chain->setInputJointsName(m_params.joints,e);
+  m_rdyn_full_chain->setInputJointsName(m_joint_names, e);
   m_joint_names = m_rdyn_full_chain->getActiveJointsName();
   RCLCPP_DEBUG(this->get_node()->get_logger(), "Rdyn: OK");
 
@@ -231,8 +235,8 @@ LeaderMPC::on_configure(const rclcpp_lifecycle::State& /*state*/)
   m_ineq_array.set_n_axis(nax);
   m_ineq_array.set_np(m_number_of_points);
 
-  // Create task pointers:
-  //* Cartesian Task
+  // Tasks
+  /* Cartesian Task */
   std::vector<int> int_axis(m_params.cartesian_axis.size());
   std::transform(m_params.cartesian_axis.begin(),m_params.cartesian_axis.end(),int_axis.begin(),
                  [](const auto& b){return (int)b;});
@@ -242,15 +246,23 @@ LeaderMPC::on_configure(const rclcpp_lifecycle::State& /*state*/)
   m_task__cartesian.enableClik(m_params.clik.active);
   m_task__cartesian.setWeightClik(m_params.clik.gain);
 
-  //* Joint Position
+  /* Joint Position */
   m_task__joint_position.init(&m_model);
+  Eigen::VectorXd weigth_vector_full(m_nax*m_number_of_points);
+  for(int idx = 0; idx < m_number_of_points; ++idx)
+  {
+    weigth_vector_full.segment(idx*m_nax, m_nax) << 0,0,1,1,1,1,1,1,1;
+  }
+  Eigen::MatrixXd diag(m_nax * m_number_of_points, m_nax * m_number_of_points);
+  diag.diagonal() = weigth_vector_full;
+  m_task__joint_position.setWeightingMatrix(diag);
 
   // Stack of tasks
   m_sot.clear();
   m_sot.set_n_axis(nax);
   m_sot.set_np(m_number_of_points);
-  m_sot.taskPushBack(&m_task__cartesian,      std::pow(k_task_level_multiplier, 0));
-  m_sot.taskPushBack(&m_task__joint_position, std::pow(k_task_level_multiplier, 1));
+  m_sot.taskPushBack(&m_task__cartesian,      1);
+  m_sot.taskPushBack(&m_task__joint_position, 1e-3);
 
   m_ub_acc.init(&m_model);
   m_lb_acc.init(&m_model);

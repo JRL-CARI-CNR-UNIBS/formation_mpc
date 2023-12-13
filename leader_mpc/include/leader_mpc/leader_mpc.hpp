@@ -103,6 +103,8 @@ protected:
 
   // --- ros2_control ---
   std::vector<std::string> m_joint_names;
+  std::vector<std::string> m_joint_base_names;
+  std::vector<std::string> m_joint_arm_names;
   std::vector<std::string> m_command_interface_types;
   std::vector<std::string> m_state_interface_types;
 
