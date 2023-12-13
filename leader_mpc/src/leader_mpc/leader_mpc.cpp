@@ -235,8 +235,8 @@ LeaderMPC::on_configure(const rclcpp_lifecycle::State& /*state*/)
   m_ineq_array.set_n_axis(nax);
   m_ineq_array.set_np(m_number_of_points);
 
-  // Tasks
-  /* Cartesian Task */
+  // == Tasks ==
+  // ==== Cartesian Task
   std::vector<int> int_axis(m_params.cartesian_axis.size());
   std::transform(m_params.cartesian_axis.begin(),m_params.cartesian_axis.end(),int_axis.begin(),
                  [](const auto& b){return (int)b;});
@@ -246,7 +246,7 @@ LeaderMPC::on_configure(const rclcpp_lifecycle::State& /*state*/)
   m_task__cartesian.enableClik(m_params.clik.active);
   m_task__cartesian.setWeightClik(m_params.clik.gain);
 
-  /* Joint Position */
+  // ==== Joint Position
   m_task__joint_position.init(&m_model);
   Eigen::VectorXd weigth_vector_full(m_nax*m_number_of_points);
   for(int idx = 0; idx < m_number_of_points; ++idx)
@@ -257,13 +257,15 @@ LeaderMPC::on_configure(const rclcpp_lifecycle::State& /*state*/)
   diag.diagonal() = weigth_vector_full;
   m_task__joint_position.setWeightingMatrix(diag);
 
-  // Stack of tasks
+
+  // == Stack of tasks ==
   m_sot.clear();
   m_sot.set_n_axis(nax);
   m_sot.set_np(m_number_of_points);
   m_sot.taskPushBack(&m_task__cartesian,      1);
   m_sot.taskPushBack(&m_task__joint_position, 1e-3);
 
+  // == Constraints ==
   m_ub_acc.init(&m_model);
   m_lb_acc.init(&m_model);
   m_ub_vel.init(&m_model);
@@ -297,8 +299,6 @@ LeaderMPC::on_configure(const rclcpp_lifecycle::State& /*state*/)
 
   m_q__state.resize(nax);
   m_q__start.resize(nax);
-  // m_dq__cmd.resize(nax * m_number_of_points);
-  // m_ddq__cmd.resize(nax * m_number_of_points);
   m_q__cmd   = Eigen::VectorXd::Zero(m_nax * m_number_of_points);
   m_dq__cmd  = Eigen::VectorXd::Zero(m_nax * m_number_of_points);
   m_ddq__cmd = Eigen::VectorXd::Zero(m_nax * m_number_of_points);
@@ -471,8 +471,6 @@ LeaderMPC::update(const rclcpp::Time & t_time, const rclcpp::Duration & /*t_peri
   Eigen::VectorXd np_q = Eigen::VectorXd(m_nax*m_number_of_points);
   for(unsigned int idx = 0; idx < m_number_of_points; ++idx){np_q.segment(idx*m_nax, m_nax) = m_q__start;}
   m_task__joint_position.setTargetPosition(np_q);
-  // taskQP::math::JointPositionTask* joint_position_task_ptr = dynamic_cast<taskQP::math::JointPositionTask*>(m_sot.getTask(1));
-  // joint_position_task_ptr->setTargetPosition(m_q__start);
 
 
   // Update task

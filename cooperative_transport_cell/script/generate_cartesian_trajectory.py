@@ -22,7 +22,7 @@ class TrajectoryCreation(Node):
     self.declare_parameter('frame',          'ur/tool0')
     self.declare_parameter('world_frame',    'map')
     self.declare_parameter('axis',           [1,1,1,0,0,0])
-    self.declare_parameter('duration',       60)
+    self.declare_parameter('duration',       30)
 
     self.max_delta = [10,10,0.5,np.deg2rad(0),np.deg2rad(0),np.deg2rad(0)]
     self.srv = self.create_service(Trigger, 'generate_cartesian_trajectory', self.generate__cb)
@@ -93,10 +93,10 @@ class TrajectoryCreation(Node):
     dt = all_t[1] - all_t[0]
     p0 = t_p0
     p1 = t_p1
-    v0 = np.array([0,0,0])
-    v1 = np.array([0,0,0])
-    # v0 = np.random.random(size=(3,)) # np.array([0,0,0])
-    # v1 = np.random.random(size=(3,)) # np.array([0,0,0])
+#    v0 = np.array([0,0,0])
+#    v1 = np.array([0,0,0])
+    v0 = np.random.random(size=(3,)) * 0.2 # np.array([0,0,0])
+    v1 = np.random.random(size=(3,)) * 0.2 # np.array([0,0,0])
     # t = 0.1
 
     # p_intp = np.zeros([n,3])

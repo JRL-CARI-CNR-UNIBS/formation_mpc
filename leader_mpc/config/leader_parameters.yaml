@@ -1,6 +1,6 @@
 controller_manager:
   ros__parameters:
-    update_rate: 50
+    update_rate: 500
 
     leader_mpc:
       type: formation_mpc/LeaderMPC
@@ -24,13 +24,13 @@ leader_joint_bcast:
 
 leader_mpc: # TODO: guarda ??
   ros__parameters:
-    control_horizon_in_s: 1.0
-    number_of_points: 3
+    control_horizon_in_s: 2.0
+    number_of_points: 10
     dt: 0.01
     formation_dt: 0.1
     cartesian_axis: [true, true, true, true, true, true]
     clik:
-      gain: 2.0
+      gain: 1.0
       active: true
     pid:
       P: [1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0]
@@ -41,16 +41,6 @@ leader_mpc: # TODO: guarda ??
     tool_frame: "ur/tool0"
     map_frame: "map"
     mount_frame: "mount_frame"
-#    joints:
-#      - "joint_x"
-#      - "joint_y"
-#      - "joint_rz"
-#      - "ur/shoulder_pan_joint"
-#      - "ur/shoulder_lift_joint"
-#      - "ur/elbow_joint"
-#      - "ur/wrist_1_joint"
-#      - "ur/wrist_2_joint"
-#      - "ur/wrist_3_joint"
     joints:
       base:
         - "joint_x"

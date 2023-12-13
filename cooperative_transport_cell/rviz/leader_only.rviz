@@ -6,6 +6,7 @@ Panels:
       Expanded:
         - /Global Options1
         - /Status1
+        - /Grid1
         - /RobotModel1
         - /TF1
         - /TF1/Frames1
@@ -47,7 +48,7 @@ Visualization Manager:
         Y: 0
         Z: 0
       Plane: XY
-      Plane Cell Count: 10
+      Plane Cell Count: 100
       Reference Frame: <Fixed Frame>
       Value: true
     - Alpha: 1
@@ -180,6 +181,8 @@ Visualization Manager:
           Value: false
         rotate_z:
           Value: false
+        tool0_19:
+          Value: true
         ur/base:
           Value: false
         ur/base_link:
@@ -232,6 +235,8 @@ Visualization Manager:
                                           {}
                                       ur/ft_frame:
                                         {}
+          tool0_19:
+            {}
       Update Interval: 0
       Value: true
   Enabled: true

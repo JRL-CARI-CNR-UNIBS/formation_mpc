@@ -225,10 +225,10 @@ protected:
   taskQP::math::LowerAccelerationLimits             m_lb_acc;
   taskQP::math::UpperVelocityLimits                 m_ub_vel;
   taskQP::math::LowerVelocityLimits                 m_lb_vel;
-  taskQP::math::UpperPositionLimits                 m_ub_pos;
   taskQP::math::UpperInvarianceConstraint           m_ub_inv;
-  taskQP::math::LowerPositionLimits                 m_lb_pos;
   taskQP::math::LowerInvarianceConstraint           m_lb_inv;
+  taskQP::math::UpperPositionLimits                 m_ub_pos;
+  taskQP::math::LowerPositionLimits                 m_lb_pos;
   taskQP::math::ScalingLimits                  m_max_scaling;
 
   // Parameters generation
@@ -238,5 +238,5 @@ protected:
   bool read_parameters    ();
 };
 } // formation_mpc
-//PLUGINLIB_EXPORT_CLASS;
+
 #endif // LEADER_MPC_HPP

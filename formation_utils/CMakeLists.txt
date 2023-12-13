@@ -60,7 +60,7 @@ install(TARGETS test_node_interpolator
 ##########################################
 
 ament_export_targets(export_${PROJECT_NAME} HAS_LIBRARY_TARGET)
-ament_export_dependencies(rclcpp Eigen3)
+ament_export_dependencies(rclcpp Eigen3 moveit_msgs)
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
