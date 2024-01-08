@@ -34,6 +34,10 @@ typedef std::shared_ptr<Interpolator> InterpolatorPtr;
       acc.resize(n);
       time.resize(n);
     }
+    size_t size()
+    {
+      return time.size();
+    }
   };
   typedef std::shared_ptr<Trajectory> TrajectoryPtr;
   typedef Trajectory* TrajectoryRawPtr;

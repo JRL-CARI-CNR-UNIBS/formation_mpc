@@ -99,6 +99,11 @@ formation_mpc: # defined per generate_parameter_library
     default_value: "base_link",
     description: "link to attach the fake_base"
   }
+  object_frame: {
+    type: string,
+    default_value: "",
+    description: "Frame of the object to transport"
+  }
   robot_description: {
     type: string,
     default_value: "",

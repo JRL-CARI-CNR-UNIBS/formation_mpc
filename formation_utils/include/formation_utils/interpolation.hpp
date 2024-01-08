@@ -14,18 +14,30 @@ namespace utils {
 
 class Interpolator {
 public:
-  Interpolator(Trajectory* plan);
+  Interpolator(const Trajectory& plan);
   Interpolator();
 
-  void set_plan(Trajectory* plan);
-  static Interpolator from_msg(const moveit_msgs::msg::CartesianTrajectory& trj, Trajectory* plan);
+  void set_plan(const Trajectory& plan);
+  Trajectory get_plan()
+  {
+    return m_plan;
+  }
+  static Interpolator from_msg(const moveit_msgs::msg::CartesianTrajectory& trj);
+
+  bool ready() {return is_ready;}
+  void start_plan(const rclcpp::Time& t_time);
+  void end_plan() {m_plan.available = false;};
+  bool is_plan_started(){return m_plan.started;}
+  bool is_plan_available(){return m_plan.available;}
+
+  Interpolator clone_with_transform(const geometry_msgs::msg::TransformStamped& t_tf);
 
   void interpolate(const rclcpp::Time& t_t,
-                   const rclcpp::Time& t_start,
                    Eigen::Vector6d& interp_vel,
                    Eigen::Affine3d& out);
 private:
-  Trajectory* m_plan;
+  Trajectory m_plan;
+  bool is_ready;
 };
 
 } // utils

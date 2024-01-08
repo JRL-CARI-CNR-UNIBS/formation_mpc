@@ -1,5 +1,5 @@
 from launch import LaunchDescription
-from launch.actions import EmitEvent, RegisterEventHandler
+from launch.actions import EmitEvent, RegisterEventHandler, DeclareLaunchArgument
 from launch.substitutions import Command, FindExecutable, LaunchConfiguration, PathJoinSubstitution
 from launch.event_handlers import OnProcessExit
 
@@ -14,6 +14,26 @@ import launch.events
 
 def generate_launch_description():
 
+  prefix_arg = DeclareLaunchArgument('prefix', default_value='')
+  prefix = LaunchConfiguration('prefix')
+
+  world_frame_arg = DeclareLaunchArgument('map', default_value='map')
+  world_frame = LaunchConfiguration('map')
+
+  create_world_frame_arg = DeclareLaunchArgument('create_world_frame', default_value='true')
+  create_world_frame = LaunchConfiguration('create_world_frame')
+
+  use_PPR_arg = DeclareLaunchArgument('use_PPR', default_value='true')
+  use_PPR = LaunchConfiguration('use_PPR')
+
+  xyz_arg = DeclareLaunchArgument('xyz', default_value='"0.0 0.0 0.0"')
+  xyz = LaunchConfiguration('xyz')
+
+  rpy_arg = DeclareLaunchArgument('rpy', default_value='"0.0 0.0 0.0"')
+  rpy = LaunchConfiguration('rpy')
+
+  launch_arguments = [prefix_arg, world_frame_arg, create_world_frame_arg, use_PPR_arg, xyz_arg, rpy_arg]
+
   # Get URDF via xacro
   robot_description_content = Command(
       [
@@ -27,10 +47,12 @@ def generate_launch_description():
               ]
           ),
           " name:=",                "formation_leader",
-          " prefix:=",              "",
-          " world_frame:=",         "map",
-          " create_world_frame:=",  "true",
-          " use_PPR:=",             "true"
+          " prefix:=",              prefix,
+          " world_frame:=",         world_frame,
+          " create_world_frame:=",  create_world_frame,
+          " use_PPR:=",             use_PPR,
+          " xyz:=",                 xyz,
+          " rpy:=",                 rpy
       ]
   )
   robot_description = {"robot_description": ParameterValue(robot_description_content, value_type=str)}
@@ -115,4 +137,4 @@ def generate_launch_description():
 #    robot_joint_state_publisher
   ]
 
-  return LaunchDescription(node_to_launch)
+  return LaunchDescription(launch_arguments + node_to_launch)

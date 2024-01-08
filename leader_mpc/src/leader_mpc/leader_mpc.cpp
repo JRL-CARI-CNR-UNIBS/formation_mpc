@@ -199,7 +199,12 @@ LeaderMPC::on_configure(const rclcpp_lifecycle::State& /*state*/)
     RCLCPP_ERROR(this->get_node()->get_logger(), "Cannot find package %s. Exiting...", m_params.fake_base.package.c_str());
     return CallbackReturn::ERROR;
   }
-  if(!fake_mobile_urdf.initFile(fake_base_pkg_dir + "/" + m_params.fake_base.path))
+//  if(!fake_mobile_urdf.initFile(fake_base_pkg_dir + "/" + m_params.fake_base.path))
+//  {
+//    RCLCPP_ERROR(this->get_node()->get_logger(), "Cannot read fake base urdf in %s/%s", fake_base_pkg_dir.c_str(), m_params.fake_base.path.c_str());
+//    return CallbackReturn::ERROR;
+//  }
+  if(!fake_mobile_urdf.initString(m_params.robot_description))
   {
     RCLCPP_ERROR(this->get_node()->get_logger(), "Cannot read fake base urdf in %s/%s", fake_base_pkg_dir.c_str(), m_params.fake_base.path.c_str());
     return CallbackReturn::ERROR;
@@ -345,9 +350,9 @@ LeaderMPC::on_activate(const rclcpp_lifecycle::State& /*state*/)
 {
   using namespace std::chrono_literals;
   m_solutions.resize((m_nax+1)*m_number_of_points);
-  if(m_tf_buffer_ptr->canTransform(m_map_frame, m_tool_frame, t_start, 1s))
+  if(m_tf_buffer_ptr->canTransform(m_map_frame, m_tool_frame, t_start, 2s))
   {
-    // TODO: sostituisci con FK
+    // TODO: sostituisci con FK?
     geometry_msgs::msg::TransformStamped msg = m_tf_buffer_ptr->lookupTransform(m_map_frame, m_tool_frame, t_start);
     m_target_x = tf2::transformToEigen(msg);
   }
@@ -405,9 +410,11 @@ LeaderMPC::on_deactivate(const rclcpp_lifecycle::State& /*state*/)
 }
 
 void
-LeaderMPC::set_plan(const moveit_msgs::msg::CartesianTrajectory& trj)
+LeaderMPC::set_plan(const moveit_msgs::msg::CartesianTrajectory& t_trj)
 {
-  m_interpolator = utils::Interpolator::from_msg(trj, &m_plan);
+  utils::Interpolator interpolator = utils::Interpolator::from_msg(t_trj);
+  geometry_msgs::msg::TransformStamped T_object_to_tool = m_tf_buffer_ptr->lookupTransform(m_params.object_frame, m_params.tool_frame, rclcpp::Time(0,0));
+  m_interpolator = interpolator.clone_with_transform(T_object_to_tool);
 }
 
 controller_interface::return_type
@@ -418,14 +425,28 @@ LeaderMPC::update(const rclcpp::Time & t_time, const rclcpp::Duration & /*t_peri
   {
     m_q__state(idx) = m_joint_position_state_interface.at(idx).get().get_value();
   }
-  if(!m_plan.available)
+  if(!m_interpolator.ready() || !m_interpolator.is_plan_available())
   {
     return controller_interface::return_type::OK;
   }
-  if(!m_plan.started)
+  if(!m_interpolator.is_plan_started())
   {
-    m_plan.start = t_time;
-    m_plan.started = true;
+    m_interpolator.start_plan(t_time);
+    RCLCPP_DEBUG(this->get_node()->get_logger(), "Starting plan");
+    // ******* Debug ***********
+    {
+      auto pub__shifted = this->get_node()->create_publisher<moveit_msgs::msg::CartesianTrajectory>("/cartesian_trajectory", 10);
+      auto ct = moveit_msgs::msg::CartesianTrajectory();
+      ct.tracked_frame="t2";
+      ct.points.resize(m_interpolator.get_plan().size());
+      for(size_t idx = 0; idx < ct.points.size(); idx++)
+      {
+        ct.points.at(idx).point.pose = tf2::toMsg(m_interpolator.get_plan().pose.at(idx));
+      }
+      pub__shifted->on_activate();
+      pub__shifted->publish(ct);
+    }
+    // *************************
     for(size_t idx = 0; idx < m_nax; ++idx)
     {
       m_q__start(idx) = m_q__state(idx);
@@ -439,34 +460,36 @@ LeaderMPC::update(const rclcpp::Time & t_time, const rclcpp::Duration & /*t_peri
   {
     target_x.setIdentity();
     target_dx.setZero();
-    m_interpolator.interpolate(t_time + rclcpp::Duration::from_seconds(m_model.getPredictionTimes()(idx)), m_plan.start, target_dx, target_x);
+    m_interpolator.interpolate(t_time + rclcpp::Duration::from_seconds(m_model.getPredictionTimes()(idx)), target_dx, target_x);
     m_target_dx.segment<6>(idx*6) = target_dx;
     if(idx == 0)
     {
+      // Debug
       m_target_x = target_x;
       geometry_msgs::msg::PoseStamped msg;
       msg.header.stamp = t_time;
       msg.pose = tf2::toMsg(target_x);
       m_pose_target__pub->publish(msg);
 
+      // Debug
       geometry_msgs::msg::TwistStamped msg2;
       msg2.header.stamp = t_time;
       msg2.twist = tf2::toMsg(target_dx);
       m_twist_target__pub->publish(msg2);
     }
   }
-  if((t_time - m_plan.start).seconds() >= m_plan.time.back().seconds())
+  if((t_time - m_interpolator.get_plan().start).seconds() >= m_interpolator.get_plan().time.back().seconds())
   {
-      m_plan.available = false;
+      m_interpolator.end_plan();
   }
 
 
   // Update Task references
-  /* Cartesian task */
+  // == Cartesian task ==
   taskQP::math::CartesianTask* cartesian_task_ptr = dynamic_cast<taskQP::math::CartesianTask*>(m_sot.getTask(0));
   cartesian_task_ptr->setTargetTrajectory(m_target_dx, m_target_x);
   cartesian_task_ptr->setTargetScaling(1.0);
-  /* Joint position */
+  // == Joint position ==
   // WARNING: la libreria richiede np*nax valori. Perché?
   Eigen::VectorXd np_q = Eigen::VectorXd(m_nax*m_number_of_points);
   for(unsigned int idx = 0; idx < m_number_of_points; ++idx){np_q.segment(idx*m_nax, m_nax) = m_q__start;}

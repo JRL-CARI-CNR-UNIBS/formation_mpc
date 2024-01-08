@@ -111,8 +111,6 @@ protected:
   rclcpp::Time m_t {0};
   rclcpp::Time t_start {0};
 
-  utils::Trajectory m_plan;
-
   std::vector<geometry_msgs::msg::PoseStamped> m_plan_timed;
 
   const rclcpp::Duration k_max_delay = rclcpp::Duration::from_nanoseconds(1e8); // 100ms

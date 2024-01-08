@@ -35,12 +35,13 @@ leader_mpc: # TODO: guarda ??
     pid:
       P: [1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0]
     action_monitor_rate: 100.0
-    leader_ns: "sweepee_1"
+    leader_ns: "leader"
     mobile_base_link: "base_link"
     manipulator_base_link: "ur/base_link"
     tool_frame: "ur/tool0"
     map_frame: "map"
     mount_frame: "mount_frame"
+    object_frame: "object"
     joints:
       base:
         - "joint_x"
@@ -53,7 +54,7 @@ leader_mpc: # TODO: guarda ??
         - "ur/wrist_1_joint"
         - "ur/wrist_2_joint"
         - "ur/wrist_3_joint"
-    initial_positions:
+    initial_positions: # Not useful
       - 0.0
       - 0.0
       - 0.0
