@@ -22,7 +22,12 @@ def cartesian__cb(msg: CartesianTrajectory) -> None:
     tfstamp.transform.rotation.z = pnt.point.pose.orientation.z
     tfstamp.transform.rotation.w = pnt.point.pose.orientation.w
     tfstamp.header.frame_id = "map"
-    tfstamp.child_frame_id = "tool0_"+str(idx)
+    prefix=""
+    if msg.tracked_frame == "":
+      prefix = "tool0_"
+    else:
+      prefix = f"{msg.tracked_frame}_"
+    tfstamp.child_frame_id = prefix+str(idx)
 
     tf_bcast.sendTransform(tfstamp)
 

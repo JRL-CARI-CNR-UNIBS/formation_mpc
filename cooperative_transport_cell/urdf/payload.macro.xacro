@@ -1,0 +1,24 @@
+<?xml version="1.0"?>
+
+<robot name="fake_base" xmlns:xacro="http://ros.org/wiki/xacro" xmlns:gz="http://gazebosim.org/schema">
+  <xacro:macro name="create_payload_center" params="attach_to *origin">
+    <link name="payload_center"/>
+    <joint name="world_to_payload_center" type="fixed">
+      <parent link="${attach_to}"/>
+      <child link="payload_center"/>
+      <xacro:insert_block name="origin"/>
+    </joint>
+    <link name="leader_grasp"  />
+    <link name="follower_grasp"/>
+    <joint name="center_to_leader" type="fixed">
+      <parent link="payload_center"/>
+      <child link="leader_grasp"/>
+      <origin xyz="0.0 2.0 0.0" rpy="-1.57 0.0 0.0"/>
+    </joint>
+    <joint name="center_to_leader" type="fixed">
+      <parent link="payload_center"/>
+      <child link="follower_grasp"/>
+      <origin xyz="0.0 -2.0 0.0" rpy="-1.57 0.0 0.0"/>
+    </joint>
+  </xacro:macro>
+</robot>

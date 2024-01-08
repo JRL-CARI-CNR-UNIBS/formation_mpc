@@ -4,18 +4,26 @@
 <xacro:macro name="fake_base_macro" params="prefix
                                             world_frame 
                                             create_world:=false
-                                            use_ros2_control:=true">
+                                            use_ros2_control:=true
+                                            *origin">
 
   <xacro:if value="${create_world}">
     <link name="${world_frame}"/>
   </xacro:if>
+  <link name="${prefix}move_starting_frame"/>
+  <joint name="${prefix}fixed_offset" type="fixed">
+    <xacro:insert_block name="origin"/>
+    <parent link="${world_frame}"/>
+    <child link="${prefix}move_starting_frame"/>
+  </joint>
+
 
   <link name="${prefix}linear_x"/>
   <link name="${prefix}linear_y"/>
   <link name="${prefix}rotate_z"/>
   <link name="${prefix}mount_frame"/>
   <joint name="${prefix}joint_x" type="prismatic">
-    <parent link="${world_frame}"/>
+    <parent link="${prefix}move_starting_frame"/>
     <child  link="${prefix}linear_x"/>
     <axis xyz="1 0 0"/>
     <limit lower="-1000000" upper="1000000" effort="1000000" velocity="1000000"/>

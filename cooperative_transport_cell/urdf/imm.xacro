@@ -9,7 +9,9 @@
   <xacro:arg name="world_frame"        default="map"/>
   <xacro:arg name="create_world_frame" default="true"/>
   <xacro:arg name="use_PPR"            default="true"/>
-  <!-- <xacro:arg name=""> -->
+  <xacro:arg name="color_base"         default="1.0 0.0 0.0 1.0"/>
+  <xacro:arg name="xyz"                default="0.0 0.0 0.0"/>
+  <xacro:arg name="rpy"                default="0.0 0.0 0.0"/>
   
 <!--
     ##############
@@ -98,6 +100,9 @@
       <geometry>
         <box size="1.0 0.5 0.4" rpy="0 0 0"/>
       </geometry>
+      <material name="colored">
+        <color rgba="$(arg color_base)"/>
+      </material>
     </visual>
   </link>
   <link name="$(arg prefix)base_connection"/>
@@ -111,12 +116,12 @@
     <xacro:fake_base_macro prefix="$(arg prefix)"
                            world_frame="$(arg world_frame)"
                            create_world="$(arg create_world_frame)"
-                           use_ros2_control="true"/>
+                           use_ros2_control="true">
+      <origin xyz="$(arg xyz)" rpy="$(arg rpy)"/>
+    </xacro:fake_base_macro>
     <joint name="$(arg prefix)" type="fixed">
       <parent link="$(arg prefix)mount_frame"/>
       <child  link="$(arg prefix)base_link"/>
     </joint>
   </xacro:if>
-
-
 </robot>

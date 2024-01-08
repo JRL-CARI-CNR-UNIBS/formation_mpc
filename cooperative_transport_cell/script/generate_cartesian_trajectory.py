@@ -19,7 +19,7 @@ class TrajectoryCreation(Node):
     super().__init__("generate_trajectory_node")
     rclpy.logging.set_logger_level(self.get_logger().name, rclpy.logging.LoggingSeverity.DEBUG)
 
-    self.declare_parameter('frame',          'ur/tool0')
+    self.declare_parameter('frame',          'object')
     self.declare_parameter('world_frame',    'map')
     self.declare_parameter('axis',           [1,1,1,0,0,0])
     self.declare_parameter('duration',       30)
@@ -42,6 +42,7 @@ class TrajectoryCreation(Node):
     world_frame = self.get_parameter('world_frame').value
     axis = self.get_parameter('axis').value
     duration = self.get_parameter('duration').value
+    print(f"On frame: {to_move__str}")
     print(f"duration: {duration}s")
 
     final_pose_delta = np.array([self.rng.choice([-1,1]) * (self.rng.random()*self.max_delta[idx]) * ax for idx, ax in enumerate(axis)])
