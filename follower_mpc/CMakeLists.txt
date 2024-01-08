@@ -42,9 +42,14 @@ list(APPEND ${PROJECT_NAME}_ADD_HPP # Only for IDE project visualization
 list(APPEND ${PROJECT_NAME}_ADD_CPP
   src/${PROJECT_NAME}/follower_mpc.cpp)
 
-add_library(${PROJECT_NAME}
+add_library(${PROJECT_NAME} SHARED
   ${${PROJECT_NAME}_ADD_CPP}
   ${${PROJECT_NAME}_ADD_HPP})
+
+if(${CMAKE_BUILD_TYPE} MATCHES "Debug")
+  target_compile_definitions(${PROJECT_NAME} PRIVATE DEBUG_ON)
+endif()
+
 target_link_libraries(${PROJECT_NAME} PUBLIC
   follower_mpc_parameters)
 ament_target_dependencies(${PROJECT_NAME} PUBLIC
@@ -71,12 +76,12 @@ pluginlib_export_plugin_description_file(controller_interface plugin.xml) # Plug
 
 install(TARGETS ${PROJECT_NAME} follower_mpc_parameters
   EXPORT export_${PROJECT_NAME}
-  ARCHIVE DESTINATION lib
-  LIBRARY DESTINATION lib
-  RUNTIME DESTINATION bin
+  ARCHIVE DESTINATION lib/${PROJECT_NAME}
+  LIBRARY DESTINATION lib/${PROJECT_NAME}
+  RUNTIME DESTINATION bin/${PROJECT_NAME}
   )
 
-install(DIRECTORY config
+install(DIRECTORY config launch
   DESTINATION "share/${PROJECT_NAME}")
 
 install(DIRECTORY include/${PROJECT_NAME}

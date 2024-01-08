@@ -1,5 +1,5 @@
-<library path="mm_mpc">
-  <class name="follower_mpc/FollowerMPC" type="follower_mpc::FollowerMPC" base_class_type="controller_interface::ControllerInterface">
+<library path="follower_mpc">
+  <class name="formation_mpc/FollowerMPC" type="formation_mpc::FollowerMPC" base_class_type="controller_interface::ControllerInterface">
   <description>
     
   </description>

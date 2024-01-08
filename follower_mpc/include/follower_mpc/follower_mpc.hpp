@@ -53,7 +53,6 @@
 #include <sensor_msgs/msg/joint_state.hpp>
 
 #include "formation_msgs/msg/trj_optim_results.hpp"
-#include "formation_msgs/action/follow_formation_leader_trajectory.hpp"
 
 #include "follower_mpc_parameters.hpp"
 
@@ -70,12 +69,6 @@ namespace formation_mpc
 class FollowerMPC : public controller_interface::ControllerInterface
 {
 public:
-  using FollowFormationTrajectory = formation_msgs::action::FollowFormationLeaderTrajectory;
-//  using GoalHandleFFT = rclcpp_action::ServerGoalHandle<FollowFormationTrajectory>;
-  using RTGoalHandle = realtime_tools::RealtimeServerGoalHandle<FollowFormationTrajectory>;
-  using RTGoalHandlePtr = std::shared_ptr<RTGoalHandle>;
-  using RTGoalHandleBuffer = realtime_tools::RealtimeBuffer<RTGoalHandlePtr>;
-
   FollowerMPC();
 
   void compute_velocity_command();
@@ -88,7 +81,7 @@ public:
   CallbackReturn on_init() override;
   CallbackReturn on_configure (const rclcpp_lifecycle::State& /*state*/) override;
   CallbackReturn on_activate  (const rclcpp_lifecycle::State& /*state*/) override;
-  CallbackReturn on_deactivate(const rclcpp_lifecycle::State& /*state*/) override;
+//  CallbackReturn on_deactivate(const rclcpp_lifecycle::State& /*state*/) override;
   // CallbackReturn on_cleanup   (const rclcpp_lifecycle::State& /*state*/) override;
   // CallbackReturn on_error     (const rclcpp_lifecycle::State& /*state*/) override;
   // CallbackReturn on_shutdown  (const rclcpp_lifecycle::State& /*state*/) override;
@@ -150,36 +143,29 @@ protected:
   Eigen::VectorXd m_target_dx;
   Eigen::Affine3d m_target_x;
 
+  Eigen::Vector6d m_twist_tool_in_tool;
+
   // Subscribers
-  rclcpp::Subscription<std_msgs::msg::String>::SharedPtr          robot_description__sub;
+  rclcpp::Subscription<std_msgs::msg::String>::SharedPtr          m_robot_description__sub;
   rclcpp::Subscription<sensor_msgs::msg::JointState>::SharedPtr   m_joint_state__sub;
+  rclcpp::Subscription<geometry_msgs::msg::Twist>::SharedPtr      m_leader_twist__sub;
+  void get_payload_twist__cb(const geometry_msgs::msg::Twist& msg);
 
   // Debug publishers
   rclcpp::Publisher<geometry_msgs::msg::PoseStamped>::SharedPtr   m_pose_target__pub;
   rclcpp::Publisher<geometry_msgs::msg::TwistStamped>::SharedPtr   m_twist_target__pub;
 
-  // Actions
-  rclcpp_action::Server<FollowFormationTrajectory>::SharedPtr m_trj_server__action;
-  rclcpp_action::CancelResponse handle_cancel__cb(const std::shared_ptr<rclcpp_action::ServerGoalHandle<FollowFormationTrajectory>> goal_handle);
-  void                          handle_accepted__cb(const std::shared_ptr<rclcpp_action::ServerGoalHandle<FollowFormationTrajectory>> goal_handle);
-  rclcpp_action::GoalResponse   handle_goal__cb(const rclcpp_action::GoalUUID & uuid,
-                                            std::shared_ptr<const FollowFormationTrajectory::Goal> goal);
-
-  RTGoalHandleBuffer m_rt_active_goal;
   rclcpp::TimerBase::SharedPtr m_timer;
-  rclcpp::Duration m_action_monitor_period;
-
-  bool m_is_there_goal_active {false};
-  bool m_is_there_new_goal    {false};
 
   std::string              m_robot_description;
 
-  std::string m_base_footprint  {"base_footprint"};
-//  std::string m_base_link       {"base_link"};
-  std::string m_tool_frame      {"tool0"};
-  std::string m_map_frame       {"map"};
-  std::string m_namespace       {"leader"};
-  std::string this_frame(const std::string& s) { return m_namespace + "/" + s;}
+  std::string m_base_footprint;
+  std::string m_base_link;
+  std::string m_tool_frame;
+  std::string m_map_frame;
+  std::string m_payload_frame;
+
+  Eigen::Affine3d m_T_from_payload_to_tool;
 
   std::unique_ptr<tf2_ros::TransformListener> m_tf_listener_ptr;
   std::unique_ptr<tf2_ros::Buffer> m_tf_buffer_ptr;
@@ -193,7 +179,7 @@ protected:
   double m_clik_gain;
   double m_dt;
 
-  utils::Interpolator m_interpolator;
+//  utils::Interpolator m_interpolator;
 
   // rdyn parameters
   Eigen::Vector3d m_gravity {0, 0, -9.80665};
