@@ -56,7 +56,7 @@ Interpolator Interpolator::clone_with_transform(const geometry_msgs::msg::Transf
     Eigen::Isometry3d tf__eig = tf2::transformToEigen(t_tf);
     new_plan.pose.at(idx) = m_plan.pose.at(idx) * tf__eig;
     // map -> object * object -> grasp
-    new_plan.twist.at(idx) = rdyn::spatialTranslation(m_plan.twist.at(idx), (m_plan.pose.at(idx)*tf2::transformToEigen(t_tf)).translation());
+    new_plan.twist.at(idx) = rdyn::spatialTranslation(m_plan.twist.at(idx), (new_plan.pose.at(idx).translation() - m_plan.pose.at(idx).translation()));
     new_plan.time.at(idx) = m_plan.time.at(idx);
   }
   return Interpolator(new_plan);

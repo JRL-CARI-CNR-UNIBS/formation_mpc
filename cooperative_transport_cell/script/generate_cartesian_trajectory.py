@@ -24,7 +24,7 @@ class TrajectoryCreation(Node):
     self.declare_parameter('axis',           [1,1,1,0,0,0])
     self.declare_parameter('duration',       30)
 
-    self.max_delta = [10,10,0.5,np.deg2rad(0),np.deg2rad(0),np.deg2rad(0)]
+    self.max_delta = [10,10,0.1,np.deg2rad(0),np.deg2rad(0),np.deg2rad(0)]
     self.srv = self.create_service(Trigger, 'generate_cartesian_trajectory', self.generate__cb)
     self.act_client = ActionClient(self, FollowFormationLeaderTrajectory, '/leader_mpc/follow_leader_trajectory')
 
@@ -32,8 +32,8 @@ class TrajectoryCreation(Node):
     self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self)
 
     self.trj__pub: Publisher    = self.create_publisher(msg_type=CartesianTrajectory, topic="/cartesian_trajectory",qos_profile=1)
-    self.interp__pub: Publisher = self.create_publisher(msg_type=TwistStamped, topic="/trj_vel", qos_profile=10)
-    self.p_interp__pub: Publisher = self.create_publisher(msg_type=PoseStamped, topic="/trj_pose", qos_profile=10)
+    self.interp__pub: Publisher = self.create_publisher(msg_type=TwistStamped, topic="/trajectory_generation_script/trj_vel", qos_profile=10)
+    self.p_interp__pub: Publisher = self.create_publisher(msg_type=PoseStamped, topic="/trajectory_generation_script/trj_pose", qos_profile=10)
 
     self.rng = np.random.default_rng()
 
