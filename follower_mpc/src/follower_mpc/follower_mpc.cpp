@@ -434,23 +434,14 @@ FollowerMPC::update(const rclcpp::Time & t_time, const rclcpp::Duration & /*t_pe
   }
 //  target_dx.setConstant(0.001);
   Eigen::Affine3d actual_pose = m_rdyn_full_chain->getTransformation(m_q__state); // map -> tool
-  // DEBUG 03d
-  static Eigen::Affine3d target_pose = actual_pose;
-  // END-DEBUG
-//  Eigen::Affine3d target_pose;
+  Eigen::Affine3d target_pose;
   if(m_twist_tool_in_map.norm() > 1e-6)
   {
-//    DEBUG 03c
-    target_pose = rdyn::spatialIntegration(target_pose, m_twist_tool_in_map, m_dt);
-    // END-DEBUG
-//    target_pose = rdyn::spatialIntegration(actual_pose, m_twist_tool_in_map, m_dt);
+    target_pose = rdyn::spatialIntegration(actual_pose, m_twist_tool_in_map, m_dt);
   }
   else
   {
     target_pose = actual_pose;
-    // DEBUG 03b - return forzato
-    return controller_interface::return_type::OK;
-    // END-DEBUG
   }
   {// DEBUG 03a - broadcast target_pose
     tf2_ros::StaticTransformBroadcaster tf_bcast(*(this->get_node()));
@@ -483,7 +474,7 @@ FollowerMPC::update(const rclcpp::Time & t_time, const rclcpp::Duration & /*t_pe
   Eigen::MatrixXd CE;
   Eigen::VectorXd ce0;
 //  RCLCPP_DEBUG(this->get_node()->get_logger(), "Pre-HQP");
-//  taskQP::math::computeHQPSolution(m_sot, CE, ce0, m_ineq_array.matrix(), m_ineq_array.vector(), m_solutions);
+  taskQP::math::computeHQPSolution(m_sot, CE, ce0, m_ineq_array.matrix(), m_ineq_array.vector(), m_solutions);
 //  RCLCPP_DEBUG_STREAM(this->get_node()->get_logger(), "sol: " << m_solutions.transpose());
 //  RCLCPP_DEBUG(this->get_node()->get_logger(), "Post-HQP");
 
@@ -507,7 +498,7 @@ FollowerMPC::update(const rclcpp::Time & t_time, const rclcpp::Duration & /*t_pe
   m_dq__cmd  = m_model.getState().tail(m_nax);
   m_q__cmd   = m_model.getState().head(m_nax);
 
-//  RCLCPP_DEBUG_STREAM(get_node()->get_logger(), "q__cmd --> " << m_q__cmd.transpose());
+  RCLCPP_DEBUG_STREAM(get_node()->get_logger(), "q__cmd --> " << m_q__cmd.transpose());
 
   m_scaling = m_solutions(m_nax * m_number_of_points);
 
