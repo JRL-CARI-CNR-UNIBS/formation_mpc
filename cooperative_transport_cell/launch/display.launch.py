@@ -1,13 +1,23 @@
 # This Python file uses the following encoding: utf-8
 
 from launch import LaunchDescription
-from launch.actions import IncludeLaunchDescription, RegisterEventHandler, TimerAction, ExecuteProcess
+from launch.actions import IncludeLaunchDescription, RegisterEventHandler, TimerAction, ExecuteProcess, OpaqueFunction
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import PathJoinSubstitution
 
 from launch_ros.substitutions import FindPackageShare
+from launch_ros.actions import Node
 
 def generate_launch_description():
+
+  return LaunchDescription([OpaqueFunction(function=launch_setup)])
+
+
+def launch_setup(context, *args, **kwargs):
+  
+  prefix_follower = 'follower/'
+  prefix_leader = ''
+
   leader_launch = IncludeLaunchDescription(
     PythonLaunchDescriptionSource(
       PathJoinSubstitution([
@@ -17,7 +27,8 @@ def generate_launch_description():
       ])
     ),
     launch_arguments={'xyz' : '"0.0 1.0 0.0"',
-                      'rpy' : '"0.0 0.0 0.0"'}.items(),
+                      'rpy' : '"0.0 0.0 0.0"',
+                      'prefix' : prefix_leader}.items(),
   )
 
   follower_launch = IncludeLaunchDescription(
@@ -30,13 +41,32 @@ def generate_launch_description():
     ),
     launch_arguments={'xyz' : '"0.0 -1.0 0.0"',
                       'rpy' : '"0.0 0.0 0.0"',
-                      'prefix' : 'follower/'}.items(),
+                      'prefix' : prefix_follower}.items(),
   )
 
   start_follower = TimerAction(
     actions=[follower_launch],
-    period=3.0
+    period=1.0
   )
+
+  ########################
+  ## Active Controllers ##
+  ###########################
+  active_leader_mpc = ExecuteProcess(
+    cmd=["ros2","control","set_controller_state","-c",f"{prefix_leader}controller_manager", "leader_mpc", "active"],
+    output="screen"
+  )
+
+  active_follower_mpc = ExecuteProcess(
+    cmd=["ros2","control","set_controller_state","-c",f"{prefix_follower}controller_manager", "follower_mpc", "active"],
+    output="screen"
+  )
+
+  timed_active_controllers = TimerAction(
+    actions=[active_leader_mpc, active_follower_mpc],
+    period=5.0
+  )
+  ###########################
 
   ############
   ## Others ##
@@ -60,14 +90,21 @@ def generate_launch_description():
   )
   delay_after_mm_spawn = TimerAction(
     actions=[generate_trj, publish_tf, fake_object],
-    period=5.0
+    period=3.0
   )
   ###########################
   ##
 
-  to_launch = [leader_launch, start_follower, delay_after_mm_spawn]
+  rviz_config = PathJoinSubstitution([FindPackageShare("cooperative_transport_cell"), "rviz", "cell.rviz"])
+  rviz2 = Node(
+    package="rviz2",
+    executable="rviz2",
+    arguments=["--display-config", rviz_config]
+  )
 
-  return LaunchDescription(to_launch)
+  return [leader_launch, start_follower, delay_after_mm_spawn, timed_active_controllers, rviz2]
+
+  
 
 # if __name__ == "__main__":
 #     pass

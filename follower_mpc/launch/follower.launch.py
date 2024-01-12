@@ -1,9 +1,9 @@
 # This Python file uses the following encoding: utf-8
 from launch import LaunchDescription
 
-from launch.substitutions import Command, FindExecutable, LaunchConfiguration, PathJoinSubstitution
+from launch.substitutions import Command, FindExecutable, LaunchConfiguration, PathJoinSubstitution, TextSubstitution
 from launch_ros.parameter_descriptions import ParameterValue
-from launch.actions import EmitEvent, RegisterEventHandler, DeclareLaunchArgument
+from launch.actions import EmitEvent, RegisterEventHandler, DeclareLaunchArgument, OpaqueFunction
 from launch.event_handlers import OnProcessExit
 from launch.conditions import IfCondition
 
@@ -15,28 +15,27 @@ from ament_index_python.packages import get_package_share_directory
 
 def generate_launch_description():
 
-  rviz_arg = DeclareLaunchArgument('rviz', default_value='False')
-  rviz = LaunchConfiguration('rviz')
+  launch_arguments = [
+    DeclareLaunchArgument('rviz',               default_value='False'),
+    DeclareLaunchArgument('prefix',             default_value='follower/'),
+    DeclareLaunchArgument('map',                default_value='map'),
+    DeclareLaunchArgument('create_world_frame', default_value='true'),
+    DeclareLaunchArgument('use_PPR',            default_value='true'),
+    DeclareLaunchArgument('xyz',                default_value='"0.0 0.0 0.0"'),
+    DeclareLaunchArgument('rpy',                default_value='"0.0 0.0 0.0"')
+  ]
 
-  prefix_arg = DeclareLaunchArgument('prefix', default_value='follower/')
-  prefix = LaunchConfiguration('prefix')
+  return LaunchDescription([*launch_arguments, OpaqueFunction(function=launch_setup)])
 
-  world_frame_arg = DeclareLaunchArgument('map', default_value='map')
-  world_frame = LaunchConfiguration('map')
+def launch_setup(context, *args, **kwargs):
 
-  create_world_frame_arg = DeclareLaunchArgument('create_world_frame', default_value='true')
+  rviz               = LaunchConfiguration('rviz')
+  prefix             = LaunchConfiguration('prefix')
+  world_frame        = LaunchConfiguration('map')
   create_world_frame = LaunchConfiguration('create_world_frame')
-
-  use_PPR_arg = DeclareLaunchArgument('use_PPR', default_value='true')
-  use_PPR = LaunchConfiguration('use_PPR')
-
-  xyz_arg = DeclareLaunchArgument('xyz', default_value='"0.0 0.0 0.0"')
-  xyz = LaunchConfiguration('xyz')
-
-  rpy_arg = DeclareLaunchArgument('rpy', default_value='"0.0 0.0 0.0"')
-  rpy = LaunchConfiguration('rpy')
-
-  launch_arguments = [rviz_arg, prefix_arg, world_frame_arg, create_world_frame_arg, use_PPR_arg, xyz_arg, rpy_arg]
+  use_PPR            = LaunchConfiguration('use_PPR')
+  xyz                = LaunchConfiguration('xyz')
+  rpy                = LaunchConfiguration('rpy')
 
   robot_description_content = Command(
       [
@@ -69,15 +68,16 @@ def generate_launch_description():
     executable="ros2_control_node",
     namespace=prefix,
     parameters=[robot_description, mpc_param],
-    output="screen"
-    )
+    output="screen",
+    remappings=[(f'/{prefix.perform(context)}leader/cmd_vel','/leader/cmd_vel')]
+  )
 
   spawn_controller_mpc = Node(
       package="controller_manager",
       executable="spawner",
       namespace=prefix,
       output="screen",
-      arguments=["follower_mpc"]
+      arguments=["follower_mpc", "--inactive"], # "--inactive"
     )
 
   spawn_controller_bcast = Node(
@@ -110,12 +110,10 @@ def generate_launch_description():
     # arguments=["--display-config", rviz_config],
   )
 
-  node_to_launch = [
+  return [
     control_node,
     start_mpc_on_bcast_activation,
     spawn_controller_bcast,
     robot_state_publisher,
     rviz_node__maybe,
   ]
-
-  return LaunchDescription(launch_arguments + node_to_launch)

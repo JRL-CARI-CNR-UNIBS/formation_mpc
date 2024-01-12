@@ -1,38 +1,33 @@
 from launch import LaunchDescription
-from launch.actions import EmitEvent, RegisterEventHandler, DeclareLaunchArgument
+from launch.actions import RegisterEventHandler, DeclareLaunchArgument, OpaqueFunction
 from launch.substitutions import Command, FindExecutable, LaunchConfiguration, PathJoinSubstitution
 from launch.event_handlers import OnProcessExit
 
-from launch_ros.actions import Node, LifecycleNode
+from launch_ros.actions import Node
 from launch_ros.substitutions import FindPackageShare
 from launch_ros.parameter_descriptions import ParameterValue
-from launch_ros.events.lifecycle import ChangeState
-from launch_ros.event_handlers import OnStateTransition
-import lifecycle_msgs.msg
-
-import launch.events
 
 def generate_launch_description():
 
-  prefix_arg = DeclareLaunchArgument('prefix', default_value='')
-  prefix = LaunchConfiguration('prefix')
+  launch_arguments = [
+    DeclareLaunchArgument('prefix',             default_value=''),
+    DeclareLaunchArgument('map',                default_value='map'),
+    DeclareLaunchArgument('create_world_frame', default_value='true'),
+    DeclareLaunchArgument('use_PPR',            default_value='true'),
+    DeclareLaunchArgument('xyz',                default_value='"0.0 0.0 0.0"'),
+    DeclareLaunchArgument('rpy',                default_value='"0.0 0.0 0.0"')
+  ]
 
-  world_frame_arg = DeclareLaunchArgument('map', default_value='map')
-  world_frame = LaunchConfiguration('map')
+  return LaunchDescription([*launch_arguments, OpaqueFunction(function=launch_setup)])
 
-  create_world_frame_arg = DeclareLaunchArgument('create_world_frame', default_value='true')
+def launch_setup(context, *args, **kwargs):
+
+  prefix             = LaunchConfiguration('prefix')
+  world_frame        = LaunchConfiguration('map')
   create_world_frame = LaunchConfiguration('create_world_frame')
-
-  use_PPR_arg = DeclareLaunchArgument('use_PPR', default_value='true')
-  use_PPR = LaunchConfiguration('use_PPR')
-
-  xyz_arg = DeclareLaunchArgument('xyz', default_value='"0.0 0.0 0.0"')
-  xyz = LaunchConfiguration('xyz')
-
-  rpy_arg = DeclareLaunchArgument('rpy', default_value='"0.0 0.0 0.0"')
-  rpy = LaunchConfiguration('rpy')
-
-  launch_arguments = [prefix_arg, world_frame_arg, create_world_frame_arg, use_PPR_arg, xyz_arg, rpy_arg]
+  use_PPR            = LaunchConfiguration('use_PPR')
+  xyz                = LaunchConfiguration('xyz')
+  rpy                = LaunchConfiguration('rpy')
 
   # Get URDF via xacro
   robot_description_content = Command(
@@ -63,6 +58,7 @@ def generate_launch_description():
     executable="ros2_control_node",
     parameters=[robot_description, mpc_param],
     output="screen",
+    arguments=['--ros-args', '--log-level', "info"]
 #    prefix=['valgrind --leak-check=yes --keep-debuginfo=yes -q --num-callers']
     )
 
@@ -70,7 +66,7 @@ def generate_launch_description():
     package="controller_manager",
     executable="spawner",
     output="screen",
-    arguments=["leader_mpc"]
+    arguments=["leader_mpc", "--inactive"]
   )
 
   spawn_controller_bcast = Node(
@@ -94,47 +90,18 @@ def generate_launch_description():
     remappings=[("/joint_states", "/leader_joint_bcast/joint_states")]
   )
 
-  ###########
-  ## Debug ##
-  ###########
-  # robot_joint_state_publisher = Node(
-  #   package="joint_state_publisher_gui",
-  #   executable="joint_state_publisher_gui",
-  #   parameters=[robot_description],
+  # rviz_config = PathJoinSubstitution([FindPackageShare("cooperative_transport_cell"), "rviz", "leader_only.rviz"])
+  # rviz2 = Node(
+  #   package="rviz2",
+  #   executable="rviz2",
+  #   arguments=["--display-config", rviz_config],
   # )
-  ###########
 
-#  robot_joint_state_publisher = Node(
-#    package="joint_state_publisher",
-#    executable="joint_state_publisher",
-#    parameters=[robot_description,
-#                {"zeros": {
-#                            "joint_x":0.0,
-#                            "joint_y":0.0,
-#                            "joint_rz":0.0,
-#                            "ur/shoulder_pan_joint":0.0,
-#                            "ur/shoulder_lift_joint":-2.356,
-#                            "ur/elbow_joint": 1.57,
-#                            "ur/wrist_1_joint": 0.0,
-#                            "ur/wrist_2_joint": 0.0,
-#                            "ur/wrist_3_joint": 0.0
-#                          }},
-#  )
-
-  rviz_config = PathJoinSubstitution([FindPackageShare("cooperative_transport_cell"), "rviz", "leader_only.rviz"])
-  rviz2 = Node(
-    package="rviz2",
-    executable="rviz2",
-    arguments=["--display-config", rviz_config],
-  )
-
-  node_to_launch = [
+  return [
     control_node,
     start_mpc_on_bcast_activation,
     spawn_controller_bcast,
     robot_state_publisher,
-    rviz2,
+    # rviz2,
 #    robot_joint_state_publisher
   ]
-
-  return LaunchDescription(launch_arguments + node_to_launch)
