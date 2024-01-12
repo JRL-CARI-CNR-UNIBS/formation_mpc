@@ -34,7 +34,6 @@ follower:
         gain: 1.0
       pid:
         P: [1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0]
-  #    ns: "follower"
       mobile_base_link: "follower/base_link"
       manipulator_base_link: "follower/ur/base_link"
       tool_frame: "follower/ur/tool0"
@@ -54,16 +53,6 @@ follower:
           - "follower/ur/wrist_1_joint"
           - "follower/ur/wrist_2_joint"
           - "follower/ur/wrist_3_joint"
-      initial_positions:
-        - 0.0
-        - 0.0
-        - 0.0
-        - 0.0
-        - -2.356
-        - 1.57
-        - 0.0
-        - 0.0
-        - 0.0
       command_interface:
   #      - "velocity"
         - "position"

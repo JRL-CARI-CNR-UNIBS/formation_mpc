@@ -22,7 +22,7 @@ leader_joint_bcast:
       - "ur/wrist_2_joint"
       - "ur/wrist_3_joint"
 
-leader_mpc: # TODO: guarda ??
+leader_mpc:
   ros__parameters:
     control_horizon_in_s: 2.0
     number_of_points: 10
@@ -30,7 +30,7 @@ leader_mpc: # TODO: guarda ??
     formation_dt: 0.1
     cartesian_axis: [true, true, true, true, true, true]
     clik:
-      gain: 0.5
+      gain: 1.5
       active: true
     pid:
       P: [1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0]
@@ -54,16 +54,6 @@ leader_mpc: # TODO: guarda ??
         - "ur/wrist_1_joint"
         - "ur/wrist_2_joint"
         - "ur/wrist_3_joint"
-    initial_positions: # Not useful
-      - 0.0
-      - 0.0
-      - 0.0
-      - 0.0
-      - -2.356
-      - 1.57
-      - 0.0
-      - 0.0
-      - 0.0
     command_interface:
 #      - "velocity"
       - "position"

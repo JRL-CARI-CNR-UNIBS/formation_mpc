@@ -120,14 +120,6 @@ formation_mpc: # defined per generate_parameter_library
       default_value: [],
       description: "Which joints belong to the arm"
     }
-  initial_positions: {
-    type: double_array,
-    default_value: [],
-    description: "",
-    validation: {
-      not_empty<>: null
-    }
-  }
   command_joints: {
     type: string_array,
     default_value: [],
