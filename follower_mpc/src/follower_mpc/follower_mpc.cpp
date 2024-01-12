@@ -2,6 +2,12 @@
 #include <ament_index_cpp/get_package_share_directory.hpp>
 #include <hardware_interface/types/hardware_interface_type_values.hpp>
 #include <rdyn_core/spacevect_algebra.h>
+
+// DEBUG 00 - include per debug vari
+#include <std_msgs/msg/float64_multi_array.hpp>
+#include <tf2_ros/static_transform_broadcaster.h>
+// END-DEBUG
+
 namespace formation_mpc {
 
 FollowerMPC::FollowerMPC()
@@ -148,13 +154,6 @@ FollowerMPC::on_configure(const rclcpp_lifecycle::State& /*state*/)
 
   m_robot_description = m_params.robot_description;
 
-  if(m_params.initial_positions.size() != m_joint_names.size())
-  {
-    RCLCPP_ERROR(this->get_node()->get_logger(), "Parameters: initial position size (%ld) =/= joints size (%ld)",
-                 m_params.initial_positions.size(), m_joint_names.size());
-    return CallbackReturn::ERROR;
-  }
-
   // rdyn
   m_base_footprint = m_params.mobile_base_link;
   m_base_link = m_params.manipulator_base_link;
@@ -224,7 +223,7 @@ FollowerMPC::on_configure(const rclcpp_lifecycle::State& /*state*/)
   std::string e;
   for(const auto& dd : m_rdyn_full_chain->getJoints())
   {
-    RCLCPP_ERROR_STREAM(get_node()->get_logger(), "Joint: " << dd->getName());
+    RCLCPP_DEBUG_STREAM(get_node()->get_logger(), "Joint: " << dd->getName());
   }
   m_rdyn_full_chain->setInputJointsName(m_joint_names, e);
   m_joint_names = m_rdyn_full_chain->getActiveJointsName();
@@ -274,7 +273,7 @@ FollowerMPC::on_configure(const rclcpp_lifecycle::State& /*state*/)
   m_sot.set_n_axis(nax);
   m_sot.set_np(m_number_of_points);
   m_sot.taskPushBack(&m_task__cartesian,      1);
-  m_sot.taskPushBack(&m_task__joint_position, 1e-3);
+//  m_sot.taskPushBack(&m_task__joint_position, 1e-3);
 
   // == Constraints ==
   m_ub_acc.init(&m_model);
@@ -288,10 +287,8 @@ FollowerMPC::on_configure(const rclcpp_lifecycle::State& /*state*/)
   m_max_scaling.init(&m_model);
   m_ub_acc.setLimits( m_rdyn_full_chain->getDDQMax());
   m_lb_acc.setLimits(-m_rdyn_full_chain->getDDQMax());
-  RCLCPP_DEBUG_STREAM(this->get_node()->get_logger(), "acceleration limits: " << m_rdyn_full_chain->getDDQMax());
   m_ub_vel.setLimits( m_rdyn_full_chain->getDQMax());
   m_lb_vel.setLimits(-m_rdyn_full_chain->getDQMax());
-  RCLCPP_DEBUG_STREAM(this->get_node()->get_logger(), "velocity limits: " << m_rdyn_full_chain->getDQMax());
   m_ub_pos.setLimits( m_rdyn_full_chain->getQMax());
   m_ub_inv.setLimits( m_rdyn_full_chain->getQMax(), m_rdyn_full_chain->getDQMax(), -m_rdyn_full_chain->getDDQMax());
   m_lb_pos.setLimits( m_rdyn_full_chain->getQMin());
@@ -338,7 +335,7 @@ FollowerMPC::on_configure(const rclcpp_lifecycle::State& /*state*/)
                                                                                          std::bind(&FollowerMPC::get_payload_twist__cb,
                                                                                                    this, _1));
 
-  // DEBUG
+  // DEBUG 01 - pubblica posa e twist
   m_pose_target__pub =  this->get_node()->create_publisher<geometry_msgs::msg::PoseStamped>("target_pose",10);
   m_twist_target__pub = this->get_node()->create_publisher<geometry_msgs::msg::TwistStamped>("target_twist",10);
 
@@ -350,20 +347,6 @@ CallbackReturn FollowerMPC::on_activate  (const rclcpp_lifecycle::State& /*state
 {
   using namespace std::chrono_literals;
   m_solutions.resize((m_nax+1)*m_number_of_points);
-  if(m_tf_buffer_ptr->canTransform(m_map_frame, m_tool_frame, t_start, 1s))
-  {
-    // TODO: sostituisci con FK
-    geometry_msgs::msg::TransformStamped msg = m_tf_buffer_ptr->lookupTransform(m_map_frame, m_tool_frame, t_start);
-    m_target_x = tf2::transformToEigen(msg);
-  }
-  else
-  {
-    RCLCPP_ERROR(get_node()->get_logger(), "ERRORE!!!! Manca qualche tf");
-    return CallbackReturn::FAILURE;
-  }
-
-  m_target_dx.resize(m_number_of_points * 6);
-  m_target_dx.setZero();
 
   for (size_t idx = 0; idx < state_interfaces_.size(); ++idx)
   {
@@ -398,11 +381,29 @@ CallbackReturn FollowerMPC::on_activate  (const rclcpp_lifecycle::State& /*state
   initial_state.tail(m_nax) = Eigen::VectorXd::Zero(m_nax);
   m_model.setInitialState( initial_state );
 
-  if(m_tf_buffer_ptr->canTransform(m_payload_frame, m_tool_frame, this->get_node()->get_clock()->now()))
+  geometry_msgs::msg::TransformStamped tf_msg;
+  try
   {
-    tf2::fromMsg(m_tf_buffer_ptr->lookupTransform(m_payload_frame, m_params.grasp_frame, this->get_node()->get_clock()->now()),
-                 m_T_from_payload_to_tool);
+    tf_msg = m_tf_buffer_ptr->lookupTransform(m_payload_frame, m_tool_frame, tf2::TimePointZero, 1s);
   }
+  catch (const tf2::TransformException& ex)
+  {
+    RCLCPP_ERROR_STREAM(this->get_node()->get_logger(),
+                        "Error while retriving Transform from [" << m_payload_frame << "] to [" << m_tool_frame << "]: "
+                                                                 << ex.what() << " -- Try again...");
+    try {
+      tf_msg = m_tf_buffer_ptr->lookupTransform(m_payload_frame, m_tool_frame, tf2::TimePointZero, 1s);
+    }  catch (const tf2::TransformException& ex) {
+      RCLCPP_ERROR_STREAM(this->get_node()->get_logger(),
+                          "Error while retriving Transform from [" << m_payload_frame << "] to [" << m_tool_frame << "]: "
+                                                                   << ex.what() << " -- Exiting");
+      return CallbackReturn::FAILURE;
+    }
+  }
+  m_T_from_payload_to_tool = tf2::transformToEigen(tf_msg);
+
+  m_twist_tool_in_map = Eigen::Vector6d::Zero();
+  m_old_twist         = Eigen::Vector6d::Zero();
 
   RCLCPP_INFO(this->get_node()->get_logger(), "Activate successfully");
   return CallbackReturn::SUCCESS;
@@ -411,9 +412,10 @@ CallbackReturn FollowerMPC::on_activate  (const rclcpp_lifecycle::State& /*state
 void
 FollowerMPC::get_payload_twist__cb(const geometry_msgs::msg::Twist& msg)
 {
-  Eigen::Vector6d twist_payload_in_payload;
-  tf2::fromMsg(msg, twist_payload_in_payload);
-  rdyn::spatialTranformation(twist_payload_in_payload, m_T_from_payload_to_tool, &m_twist_tool_in_tool);
+  Eigen::Vector6d twist_payload_in_map;
+  tf2::fromMsg(msg, twist_payload_in_map);
+  m_old_twist = m_twist_tool_in_map;
+  m_twist_tool_in_map = rdyn::spatialTranslation(twist_payload_in_map, m_T_from_payload_to_tool.translation());
 }
 
 controller_interface::return_type
@@ -423,16 +425,50 @@ FollowerMPC::update(const rclcpp::Time & t_time, const rclcpp::Duration & /*t_pe
   {
     m_q__state(idx) = m_joint_position_state_interface.at(idx).get().get_value();
   }
-  Eigen::Affine3d actual_pose = m_rdyn_full_chain->getTransformation(m_q__state);
-  Eigen::Affine3d target_pose = rdyn::spatialIntegration(actual_pose, m_twist_tool_in_tool, m_dt);
+  Eigen::VectorXd target_dx = Eigen::VectorXd::Zero(m_number_of_points * 6);
+  for(size_t idx = 0; idx < m_number_of_points; ++idx)
+  {
+    // FIXME: gli intervalli di tempo non sono costanti
+    Eigen::Vector6d vec = m_old_twist + (idx+1)*(m_twist_tool_in_map-m_old_twist)/(double)m_number_of_points;
+    target_dx.segment<6>(idx*6) = vec;
+  }
+//  target_dx.setConstant(0.001);
+  Eigen::Affine3d actual_pose = m_rdyn_full_chain->getTransformation(m_q__state); // map -> tool
+  // DEBUG 03d
+  static Eigen::Affine3d target_pose = actual_pose;
+  // END-DEBUG
+//  Eigen::Affine3d target_pose;
+  if(m_twist_tool_in_map.norm() > 1e-6)
+  {
+//    DEBUG 03c
+    target_pose = rdyn::spatialIntegration(target_pose, m_twist_tool_in_map, m_dt);
+    // END-DEBUG
+//    target_pose = rdyn::spatialIntegration(actual_pose, m_twist_tool_in_map, m_dt);
+  }
+  else
+  {
+    target_pose = actual_pose;
+    // DEBUG 03b - return forzato
+    return controller_interface::return_type::OK;
+    // END-DEBUG
+  }
+  {// DEBUG 03a - broadcast target_pose
+    tf2_ros::StaticTransformBroadcaster tf_bcast(*(this->get_node()));
+    geometry_msgs::msg::TransformStamped msg;
+    msg = tf2::eigenToTransform(target_pose);
+    msg.header.frame_id = m_params.map_frame;
+    msg.header.stamp = rclcpp::Time(0,0);
+    msg.child_frame_id = "std::to_string(get_node()->get_clock()->now().nanoseconds());";
+    tf_bcast.sendTransform(msg);
+  }// DEBUG-END
 
   // == Cartesian
-  m_task__cartesian.setTargetTrajectory(m_twist_tool_in_tool, target_pose);
+  m_task__cartesian.setTargetTrajectory(target_dx, target_pose);
   m_task__cartesian.setTargetScaling(1.0);
   // == Joints
-  Eigen::VectorXd np_q = Eigen::VectorXd(m_nax*m_number_of_points);
-  for(unsigned int idx = 0; idx < m_number_of_points; ++idx){np_q.segment(idx*m_nax, m_nax) = m_q__start;}
-  m_task__joint_position.setTargetPosition(np_q);
+//  Eigen::VectorXd np_q = Eigen::VectorXd(m_nax*m_number_of_points);
+//  for(unsigned int idx = 0; idx < m_number_of_points; ++idx){np_q.segment(idx*m_nax, m_nax) = m_q__start;}
+//  m_task__joint_position.setTargetPosition(np_q);
 
   // Update task
   for(size_t idx = 0; idx < m_sot.stackSize(); ++idx)
@@ -446,8 +482,24 @@ FollowerMPC::update(const rclcpp::Time & t_time, const rclcpp::Duration & /*t_pe
   }
   Eigen::MatrixXd CE;
   Eigen::VectorXd ce0;
-  taskQP::math::computeHQPSolution(m_sot, CE, ce0, m_ineq_array.matrix(), m_ineq_array.vector(), m_solutions);
+//  RCLCPP_DEBUG(this->get_node()->get_logger(), "Pre-HQP");
+//  taskQP::math::computeHQPSolution(m_sot, CE, ce0, m_ineq_array.matrix(), m_ineq_array.vector(), m_solutions);
+//  RCLCPP_DEBUG_STREAM(this->get_node()->get_logger(), "sol: " << m_solutions.transpose());
+//  RCLCPP_DEBUG(this->get_node()->get_logger(), "Post-HQP");
 
+  { // DEBUG 02 - pubblica soluzione
+    auto pub_solution = this->get_node()->create_publisher<std_msgs::msg::Float64MultiArray>("solutions",10);
+    pub_solution->on_activate();
+    std_msgs::msg::Float64MultiArray msg;
+    msg.data = std::vector<double>(m_solutions.data(), m_solutions.data()+m_solutions.size());
+    pub_solution->publish(msg);
+  } // END
+
+  assert(!std::isnan(m_solutions(0)));
+  for(auto& sol : m_solutions.head(m_nax))
+  {
+    sol = std::fabs(sol) > 1e-6? sol : 0.0;
+  }
   m_model.updatePredictions(m_solutions.head(m_nax*m_number_of_points));
   m_model.updateState(m_solutions.head(m_nax));
 
@@ -455,9 +507,11 @@ FollowerMPC::update(const rclcpp::Time & t_time, const rclcpp::Duration & /*t_pe
   m_dq__cmd  = m_model.getState().tail(m_nax);
   m_q__cmd   = m_model.getState().head(m_nax);
 
+//  RCLCPP_DEBUG_STREAM(get_node()->get_logger(), "q__cmd --> " << m_q__cmd.transpose());
+
   m_scaling = m_solutions(m_nax * m_number_of_points);
 
-  // Eigen::VectorXd cartesian_error = cartesian_task_ptr->computeTaskError(m_target_x, m_q__cmd);
+  // Eigen::VectorXd cartesian_error = cartesian_task_ptr->computeTaskError(target_x, m_q__cmd);
   // Eigen::VectorXd joint_error = m_q__cmd - m_q__state;
   for(size_t idx = 0; idx < m_nax; ++idx)
   {

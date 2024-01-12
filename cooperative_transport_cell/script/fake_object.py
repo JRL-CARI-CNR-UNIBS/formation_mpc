@@ -77,26 +77,26 @@ if __name__ == '__main__':
   tf2_static_bcast.sendTransform(msg)
 
 
-  # while(rclpy.ok()):
-    # future_from_leader_to_map = tf2_buffer.wait_for_transform_async(target_frame=leader_frame, source_frame=map_frame,time=rclTime(seconds=0))
+  while(rclpy.ok()):
+    future_from_leader_to_map = tf2_buffer.wait_for_transform_async(target_frame=leader_frame, source_frame=map_frame,time=rclTime(seconds=0))
 
-    # rclpy.spin_until_future_complete(node=node, future=future_from_leader_to_map)
-    # if(not future_from_leader_to_map.done() or not future_from_leader_to_map.result()):
-      # node.get_logger().error("Non dovresti essere qui!")
-      # exit(1)
+    rclpy.spin_until_future_complete(node=node, future=future_from_leader_to_map)
+    if(not future_from_leader_to_map.done() or not future_from_leader_to_map.result()):
+      node.get_logger().error("Non dovresti essere qui!")
+      exit(1)
 
-    # T_from_leader_to_map: TransformStamped = tf2_buffer.lookup_transform(target_frame=leader_frame, source_frame=map_frame, time=rclTime(seconds=0))
-    # msg = TransformStamped()
-    # msg.header.stamp = node.get_clock().now().to_msg()
-    # msg.header.frame_id = leader_frame
-    # msg.child_frame_id = object_frame
-    # msg.transform.translation.x = 0.0
-    # msg.transform.translation.y = 0.0
-    # msg.transform.translation.z = center_to_leader
-    # msg.transform.rotation.x = T_from_leader_to_map.transform.rotation.x
-    # msg.transform.rotation.y = T_from_leader_to_map.transform.rotation.y
-    # msg.transform.rotation.z = T_from_leader_to_map.transform.rotation.z
-    # msg.transform.rotation.w = T_from_leader_to_map.transform.rotation.w
-    # tf2_bcast.sendTransform(msg)
+    T_from_leader_to_map: TransformStamped = tf2_buffer.lookup_transform(target_frame=leader_frame, source_frame=map_frame, time=rclTime(seconds=0))
+    msg = TransformStamped()
+    msg.header.stamp = node.get_clock().now().to_msg()
+    msg.header.frame_id = leader_frame
+    msg.child_frame_id = object_frame
+    msg.transform.translation.x = 0.0
+    msg.transform.translation.y = 0.0
+    msg.transform.translation.z = center_to_leader
+    msg.transform.rotation.x = T_from_leader_to_map.transform.rotation.x
+    msg.transform.rotation.y = T_from_leader_to_map.transform.rotation.y
+    msg.transform.rotation.z = T_from_leader_to_map.transform.rotation.z
+    msg.transform.rotation.w = T_from_leader_to_map.transform.rotation.w
+    tf2_bcast.sendTransform(msg)
 
   rclpy.shutdown()

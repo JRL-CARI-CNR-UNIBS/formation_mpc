@@ -110,7 +110,6 @@ protected:
   rclcpp::TimerBase::SharedPtr m_update_timer;
 
   rclcpp::Time m_t {0};
-  rclcpp::Time t_start {0};
 
   utils::Trajectory m_plan;
 
@@ -143,7 +142,8 @@ protected:
   Eigen::VectorXd m_target_dx;
   Eigen::Affine3d m_target_x;
 
-  Eigen::Vector6d m_twist_tool_in_tool;
+  Eigen::Vector6d m_twist_tool_in_map;
+  Eigen::Vector6d m_old_twist;
 
   // Subscribers
   rclcpp::Subscription<std_msgs::msg::String>::SharedPtr          m_robot_description__sub;

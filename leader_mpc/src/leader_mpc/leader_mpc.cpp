@@ -100,17 +100,17 @@ LeaderMPC::read_parameters()
 CallbackReturn
 LeaderMPC::on_init()
 {
-#ifdef DEBUG_ON
-#include "rcutils/error_handling.h"
-if(rcutils_logging_set_logger_level(this->get_node()->get_logger().get_name(), RCUTILS_LOG_SEVERITY_DEBUG))
-{
-  RCLCPP_ERROR(this->get_node()->get_logger(), "Cannot set logger severity to DEBUG, using default");
-}
-else
-{
-  RCLCPP_DEBUG(this->get_node()->get_logger(), "Enable DEBUG logging");
-}
-#endif
+//#ifdef DEBUG_ON
+//#include "rcutils/error_handling.h"
+//if(rcutils_logging_set_logger_level(this->get_node()->get_logger().get_name(), RCUTILS_LOG_SEVERITY_DEBUG))
+//{
+//  RCLCPP_ERROR(this->get_node()->get_logger(), "Cannot set logger severity to DEBUG, using default");
+//}
+//else
+//{
+//  RCLCPP_DEBUG(this->get_node()->get_logger(), "Enable DEBUG logging");
+//}
+//#endif
   try
   {
     declare_parameters();
@@ -149,13 +149,6 @@ LeaderMPC::on_configure(const rclcpp_lifecycle::State& /*state*/)
   }
 
   m_robot_description = m_params.robot_description;
-
-  if(m_params.initial_positions.size() != m_joint_names.size())
-  {
-    RCLCPP_ERROR(this->get_node()->get_logger(), "Parameters: initial position size (%ld) =/= joints size (%ld)",
-                 m_params.initial_positions.size(), m_joint_names.size());
-    return CallbackReturn::ERROR;
-  }
 
   // rdyn
   urdf::Model urdf_model;
@@ -254,7 +247,7 @@ LeaderMPC::on_configure(const rclcpp_lifecycle::State& /*state*/)
   // ==== Joint Position
   m_task__joint_position.init(&m_model);
   Eigen::VectorXd weigth_vector_full(m_nax*m_number_of_points);
-  for(int idx = 0; idx < m_number_of_points; ++idx)
+  for(size_t idx = 0; idx < m_number_of_points; ++idx)
   {
     weigth_vector_full.segment(idx*m_nax, m_nax) << 0,0,1,1,1,1,1,1,1;
   }
@@ -337,6 +330,8 @@ LeaderMPC::on_configure(const rclcpp_lifecycle::State& /*state*/)
   m_joint_position_state_interface.clear();
   m_joint_velocity_state_interface.clear();
 
+  m_send_to_follower__pub = this->get_node()->create_publisher<geometry_msgs::msg::Twist>("leader/cmd_vel", 1);
+
   // DEBUG
   m_pose_target__pub =  this->get_node()->create_publisher<geometry_msgs::msg::PoseStamped>("target_pose",10);
   m_twist_target__pub = this->get_node()->create_publisher<geometry_msgs::msg::TwistStamped>("target_twist",10);
@@ -350,15 +345,16 @@ LeaderMPC::on_activate(const rclcpp_lifecycle::State& /*state*/)
 {
   using namespace std::chrono_literals;
   m_solutions.resize((m_nax+1)*m_number_of_points);
-  if(m_tf_buffer_ptr->canTransform(m_map_frame, m_tool_frame, t_start, 2s))
+  try
   {
-    // TODO: sostituisci con FK?
-    geometry_msgs::msg::TransformStamped msg = m_tf_buffer_ptr->lookupTransform(m_map_frame, m_tool_frame, t_start);
+    // TODO: Sostituisci con FK?
+    geometry_msgs::msg::TransformStamped msg = m_tf_buffer_ptr->lookupTransform(m_map_frame, m_tool_frame, tf2::TimePointZero, 1s);
     m_target_x = tf2::transformToEigen(msg);
   }
-  else
+  catch(tf2::TransformException& ex)
   {
-    RCLCPP_ERROR(get_node()->get_logger(), "ERRORE!!!! Manca qualche tf");
+    RCLCPP_ERROR(this->get_node()->get_logger(),"Cannot transform from [%s] to [%s]: %s",
+                                                m_map_frame.c_str(), m_tool_frame.c_str(), ex.what());
     return CallbackReturn::FAILURE;
   }
 
@@ -413,8 +409,9 @@ void
 LeaderMPC::set_plan(const moveit_msgs::msg::CartesianTrajectory& t_trj)
 {
   utils::Interpolator interpolator = utils::Interpolator::from_msg(t_trj);
-  geometry_msgs::msg::TransformStamped T_object_to_tool = m_tf_buffer_ptr->lookupTransform(m_params.object_frame, m_params.tool_frame, rclcpp::Time(0,0));
+  geometry_msgs::msg::TransformStamped T_object_to_tool = m_tf_buffer_ptr->lookupTransform(m_params.object_frame, m_params.tool_frame, tf2::TimePointZero);
   m_interpolator = interpolator.clone_with_transform(T_object_to_tool);
+  m_T_from_object_to_tool = tf2::transformToEigen(T_object_to_tool);
 }
 
 controller_interface::return_type
@@ -490,7 +487,6 @@ LeaderMPC::update(const rclcpp::Time & t_time, const rclcpp::Duration & /*t_peri
   cartesian_task_ptr->setTargetTrajectory(m_target_dx, m_target_x);
   cartesian_task_ptr->setTargetScaling(1.0);
   // == Joint position ==
-  // WARNING: la libreria richiede np*nax valori. Perché?
   Eigen::VectorXd np_q = Eigen::VectorXd(m_nax*m_number_of_points);
   for(unsigned int idx = 0; idx < m_number_of_points; ++idx){np_q.segment(idx*m_nax, m_nax) = m_q__start;}
   m_task__joint_position.setTargetPosition(np_q);
@@ -518,6 +514,16 @@ LeaderMPC::update(const rclcpp::Time & t_time, const rclcpp::Duration & /*t_peri
   m_q__cmd   = m_model.getState().head(m_nax);
 
   m_scaling = m_solutions(m_nax * m_number_of_points);
+
+  Eigen::Vector6d twist__to_follower = rdyn::spatialTranslation(m_rdyn_full_chain->getJacobian(m_q__cmd) * m_dq__cmd, m_T_from_object_to_tool.translation());
+  geometry_msgs::msg::Twist msg__to_follower;
+  msg__to_follower.linear.x =  twist__to_follower(0);
+  msg__to_follower.linear.y =  twist__to_follower(1);
+  msg__to_follower.linear.z =  twist__to_follower(2);
+  msg__to_follower.angular.x = twist__to_follower(3);
+  msg__to_follower.angular.y = twist__to_follower(4);
+  msg__to_follower.angular.z = twist__to_follower(5);
+  m_send_to_follower__pub->publish(msg__to_follower);
 
   // Eigen::VectorXd cartesian_error = cartesian_task_ptr->computeTaskError(m_target_x, m_q__cmd);
   // Eigen::VectorXd joint_error = m_q__cmd - m_q__state;

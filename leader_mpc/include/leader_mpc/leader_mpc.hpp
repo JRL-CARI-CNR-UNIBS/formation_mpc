@@ -109,7 +109,6 @@ protected:
   rclcpp::TimerBase::SharedPtr m_update_timer;
 
   rclcpp::Time m_t {0};
-  rclcpp::Time t_start {0};
 
   std::vector<geometry_msgs::msg::PoseStamped> m_plan_timed;
 
@@ -143,6 +142,9 @@ protected:
   // Subscribers
   rclcpp::Subscription<std_msgs::msg::String>::SharedPtr          robot_description__sub;
   rclcpp::Subscription<sensor_msgs::msg::JointState>::SharedPtr   m_joint_state__sub;
+
+  // Publishers
+  rclcpp::Publisher<geometry_msgs::msg::Twist>::SharedPtr         m_send_to_follower__pub;
 
   // Debug publishers
   rclcpp::Publisher<geometry_msgs::msg::PoseStamped>::SharedPtr   m_pose_target__pub;
@@ -184,6 +186,8 @@ protected:
   double m_dt;
 
   utils::Interpolator m_interpolator;
+
+  Eigen::Isometry3d m_T_from_object_to_tool;
 
   // rdyn parameters
   Eigen::Vector3d m_gravity {0, 0, -9.80665};
