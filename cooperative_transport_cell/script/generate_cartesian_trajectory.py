@@ -4,6 +4,7 @@ from rclpy.node import Node
 from rclpy.publisher import Publisher
 from rclpy.action import ActionClient
 from rclpy.duration import Duration
+from rclpy.time import Time as rclTime
 from std_srvs.srv import Trigger
 from formation_msgs.action import FollowFormationLeaderTrajectory
 import tf2_ros
@@ -52,7 +53,7 @@ class TrajectoryCreation(Node):
     now = self.get_clock().now()
     while(True):
       try:
-        to_move__tf = self.tf_buffer.lookup_transform(source_frame=to_move__str, target_frame=world_frame, time=rclpy.time.Time())
+        to_move__tf = self.tf_buffer.lookup_transform(source_frame=to_move__str, target_frame=world_frame, time=rclTime(seconds=0))
         break
       except:
         self.get_logger().error(f"Cannot get transform from {world_frame} to {to_move__str}")

@@ -27,15 +27,11 @@ if __name__ == '__main__':
   object_frame = node.get_parameter("object_frame").value
   map_frame = node.get_parameter("map_frame").value
 
-  print(leader_frame)
-  print(map_frame)
-
   tf2_buffer = Buffer()
   tf2_listener = TransformListener(tf2_buffer, node)
-  tf2_bcast = TransformBroadcaster(node)
   tf2_static_bcast = StaticTransformBroadcaster(node)
 
-  # "object" definition
+  # GET: Map -> leader
   future_from_leader_to_map = tf2_buffer.wait_for_transform_async(target_frame=leader_frame, source_frame=map_frame,time=rclTime(seconds=0))
   rclpy.spin_until_future_complete(node=node, future=future_from_leader_to_map)
   if(not future_from_leader_to_map.done() or not future_from_leader_to_map.result()):
@@ -43,60 +39,44 @@ if __name__ == '__main__':
     exit(1)
   T_from_leader_to_map: TransformStamped = tf2_buffer.lookup_transform(target_frame=leader_frame, source_frame=map_frame, time=rclTime(seconds=0))
 
-  msg = TransformStamped()
-  msg.header.stamp = node.get_clock().now().to_msg()
-  msg.header.frame_id = leader_frame
-  msg.child_frame_id = object_frame
-  msg.transform.rotation.x = T_from_leader_to_map.transform.rotation.x
-  msg.transform.rotation.y = T_from_leader_to_map.transform.rotation.y
-  msg.transform.rotation.z = T_from_leader_to_map.transform.rotation.z
-  msg.transform.rotation.w = T_from_leader_to_map.transform.rotation.w
-  msg.transform.translation.x = 0.0
-  msg.transform.translation.y = 0.0
-  msg.transform.translation.z = center_to_leader
-  tf2_static_bcast.sendTransform(msg)
+  # SEND: leader -> object
+  msg__lead_to_obj = TransformStamped()
+  msg__lead_to_obj.header.stamp = node.get_clock().now().to_msg()
+  msg__lead_to_obj.header.frame_id = leader_frame
+  msg__lead_to_obj.child_frame_id = object_frame
+  msg__lead_to_obj.transform.rotation.x = T_from_leader_to_map.transform.rotation.x
+  msg__lead_to_obj.transform.rotation.y = T_from_leader_to_map.transform.rotation.y
+  msg__lead_to_obj.transform.rotation.z = T_from_leader_to_map.transform.rotation.z
+  msg__lead_to_obj.transform.rotation.w = T_from_leader_to_map.transform.rotation.w
+  msg__lead_to_obj.transform.translation.x = 0.0
+  msg__lead_to_obj.transform.translation.y = 0.0
+  msg__lead_to_obj.transform.translation.z = center_to_leader
+  tf2_static_bcast.sendTransform(msg__lead_to_obj)
 
-  future_from_obj_to_follow = tf2_buffer.wait_for_transform_async(target_frame=object_frame, source_frame=follower_frame,time=rclTime(seconds=0))
+  ## GET: follower/tool0 -> object
+  future_from_obj_to_follow = tf2_buffer.wait_for_transform_async(source_frame="follower/ur/tool0", target_frame=object_frame,time=rclTime(seconds=0))
   rclpy.spin_until_future_complete(node=node, future=future_from_obj_to_follow)
   if(not future_from_obj_to_follow.done() or not future_from_obj_to_follow.result()):
     node.get_logger().error("Non dovresti essere qui!")
     exit(1)
-  T_from_obj_to_follow: TransformStamped = tf2_buffer.lookup_transform(target_frame=object_frame, source_frame=follower_frame, time=rclTime(seconds=0))
+  T_from_obj_to_follow: TransformStamped = tf2_buffer.lookup_transform(source_frame="follower/ur/tool0", target_frame=object_frame, time=rclTime(seconds=0))
 
-  msg = TransformStamped()
-  msg.header.stamp = node.get_clock().now().to_msg()
-  msg.header.frame_id = object_frame
-  msg.child_frame_id = follower_frame
-  msg.transform.rotation.x = T_from_obj_to_follow.transform.rotation.x
-  msg.transform.rotation.y = T_from_obj_to_follow.transform.rotation.y
-  msg.transform.rotation.z = T_from_obj_to_follow.transform.rotation.z
-  msg.transform.rotation.w = T_from_obj_to_follow.transform.rotation.w
-  msg.transform.translation.x = 0.0
-  msg.transform.translation.y = -center_to_follower
-  msg.transform.translation.z = 0.0
-  tf2_static_bcast.sendTransform(msg)
+  ## SEND: object -> follower/grasp
+  msg__obj_to_fgrasp = TransformStamped()
+  msg__obj_to_fgrasp.header.stamp = node.get_clock().now().to_msg()
+  msg__obj_to_fgrasp.header.frame_id = object_frame
+  msg__obj_to_fgrasp.child_frame_id = follower_frame
+  msg__obj_to_fgrasp.transform.rotation.x = T_from_obj_to_follow.transform.rotation.x
+  msg__obj_to_fgrasp.transform.rotation.y = T_from_obj_to_follow.transform.rotation.y
+  msg__obj_to_fgrasp.transform.rotation.z = T_from_obj_to_follow.transform.rotation.z
+  msg__obj_to_fgrasp.transform.rotation.w = T_from_obj_to_follow.transform.rotation.w
+  msg__obj_to_fgrasp.transform.translation.x = 0.0
+  msg__obj_to_fgrasp.transform.translation.y = -center_to_follower
+  msg__obj_to_fgrasp.transform.translation.z = 0.0
+  # tf2_static_bcast.sendTransform(msg__obj_to_fgrasp)
+  tf2_static_bcast.sendTransform([msg__lead_to_obj, msg__obj_to_fgrasp])
 
+  print("###### Script end! ######")
 
-  while(rclpy.ok()):
-    future_from_leader_to_map = tf2_buffer.wait_for_transform_async(target_frame=leader_frame, source_frame=map_frame,time=rclTime(seconds=0))
-
-    rclpy.spin_until_future_complete(node=node, future=future_from_leader_to_map)
-    if(not future_from_leader_to_map.done() or not future_from_leader_to_map.result()):
-      node.get_logger().error("Non dovresti essere qui!")
-      exit(1)
-
-    T_from_leader_to_map: TransformStamped = tf2_buffer.lookup_transform(target_frame=leader_frame, source_frame=map_frame, time=rclTime(seconds=0))
-    msg = TransformStamped()
-    msg.header.stamp = node.get_clock().now().to_msg()
-    msg.header.frame_id = leader_frame
-    msg.child_frame_id = object_frame
-    msg.transform.translation.x = 0.0
-    msg.transform.translation.y = 0.0
-    msg.transform.translation.z = center_to_leader
-    msg.transform.rotation.x = T_from_leader_to_map.transform.rotation.x
-    msg.transform.rotation.y = T_from_leader_to_map.transform.rotation.y
-    msg.transform.rotation.z = T_from_leader_to_map.transform.rotation.z
-    msg.transform.rotation.w = T_from_leader_to_map.transform.rotation.w
-    tf2_bcast.sendTransform(msg)
-
+  rclpy.spin(node)
   rclpy.shutdown()
