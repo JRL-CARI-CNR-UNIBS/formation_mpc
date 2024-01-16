@@ -1,22 +1,30 @@
 # This Python file uses the following encoding: utf-8
 
 from launch import LaunchDescription
-from launch.actions import IncludeLaunchDescription, RegisterEventHandler, TimerAction, ExecuteProcess, OpaqueFunction
+from launch.actions import IncludeLaunchDescription, TimerAction, ExecuteProcess, OpaqueFunction, DeclareLaunchArgument
 from launch.launch_description_sources import PythonLaunchDescriptionSource
-from launch.substitutions import PathJoinSubstitution
+from launch.substitutions import PathJoinSubstitution, LaunchConfiguration
+from launch.conditions import IfCondition
 
 from launch_ros.substitutions import FindPackageShare
 from launch_ros.actions import Node
 
 def generate_launch_description():
 
-  return LaunchDescription([OpaqueFunction(function=launch_setup)])
+  arguments = [
+    DeclareLaunchArgument('rviz',            default_value='true'),
+    DeclareLaunchArgument('prefix_follower', default_value='follower/'),
+    DeclareLaunchArgument('prefix_leader',   default_value='')
+    ]
+  
+  return LaunchDescription([*arguments, OpaqueFunction(function=launch_setup)])
 
 
 def launch_setup(context, *args, **kwargs):
   
-  prefix_follower = 'follower/'
-  prefix_leader = ''
+  rviz =            LaunchConfiguration('rviz')
+  prefix_follower = LaunchConfiguration('prefix_follower')
+  prefix_leader =   LaunchConfiguration('prefix_leader')
 
   leader_launch = IncludeLaunchDescription(
     PythonLaunchDescriptionSource(
@@ -26,9 +34,9 @@ def launch_setup(context, *args, **kwargs):
         "leader.launch.py"
       ])
     ),
-    launch_arguments={'xyz' : '"0.0 1.0 0.0"',
+    launch_arguments={'xyz' : '"0.0 1.5 0.0"',
                       'rpy' : '"0.0 0.0 0.0"',
-                      'prefix' : prefix_leader}.items(),
+                      'prefix' : prefix_leader.perform(context)}.items(),
   )
 
   follower_launch = IncludeLaunchDescription(
@@ -39,9 +47,10 @@ def launch_setup(context, *args, **kwargs):
         "follower.launch.py"
       ])
     ),
-    launch_arguments={'xyz' : '"0.0 -1.0 0.0"',
+    launch_arguments={'xyz' : '"0.0 -1.5 0.0"',
                       'rpy' : '"0.0 0.0 0.0"',
-                      'prefix' : prefix_follower}.items(),
+                      'prefix' : prefix_follower.perform(context),
+                      'rviz' : 'false'}.items(),
   )
 
   start_follower = TimerAction(
@@ -53,12 +62,12 @@ def launch_setup(context, *args, **kwargs):
   ## Active Controllers ##
   ###########################
   active_leader_mpc = ExecuteProcess(
-    cmd=["ros2","control","set_controller_state","-c",f"{prefix_leader}controller_manager", "leader_mpc", "active"],
+    cmd=["ros2","control","set_controller_state","-c",f"{prefix_leader.perform(context)}controller_manager", "leader_mpc", "active"],
     output="screen"
   )
 
   active_follower_mpc = ExecuteProcess(
-    cmd=["ros2","control","set_controller_state","-c",f"{prefix_follower}controller_manager", "follower_mpc", "active"],
+    cmd=["ros2","control","set_controller_state","-c",f"{prefix_follower.perform(context)}controller_manager", "follower_mpc", "active"],
     output="screen"
   )
 
@@ -76,13 +85,11 @@ def launch_setup(context, *args, **kwargs):
          PathJoinSubstitution([FindPackageShare('cooperative_transport_cell'), "script", "generate_cartesian_trajectory.py"])],
     output="screen"
   )
-
   publish_tf = ExecuteProcess(
     cmd=["python3",
          PathJoinSubstitution([FindPackageShare('cooperative_transport_cell'), "script", "publish_tf_trajectory.py"])],
     output="screen"
   )
-
   fake_object = ExecuteProcess(
     cmd=["python3",
          PathJoinSubstitution([FindPackageShare('cooperative_transport_cell'), "script", "fake_object.py"])],
@@ -97,6 +104,7 @@ def launch_setup(context, *args, **kwargs):
 
   rviz_config = PathJoinSubstitution([FindPackageShare("cooperative_transport_cell"), "rviz", "cell.rviz"])
   rviz2 = Node(
+    condition=IfCondition(rviz),
     package="rviz2",
     executable="rviz2",
     arguments=["--display-config", rviz_config]
