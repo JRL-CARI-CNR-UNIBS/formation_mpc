@@ -31,7 +31,7 @@ follower:
       cartesian_axis: [true, true, true, true, true, true]
       clik:
         active: true
-        gain: 1.0
+        gain: 1.5
       pid:
         P: [1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0]
       mobile_base_link: "follower/base_link"

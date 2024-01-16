@@ -76,7 +76,7 @@ void Interpolator::interpolate(const rclcpp::Time& t_t,
     return;
   }
 
-  int idx = std::distance(m_plan.time.begin(),
+  size_t idx = std::distance(m_plan.time.begin(),
                       std::find_if(m_plan.time.begin(), m_plan.time.end(), [t_now](const auto& t_time){
                             return t_now < t_time;
                       }));

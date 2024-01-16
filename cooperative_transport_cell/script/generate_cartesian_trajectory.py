@@ -97,8 +97,8 @@ class TrajectoryCreation(Node):
     p1 = t_p1
 #    v0 = np.array([0,0,0])
 #    v1 = np.array([0,0,0])
-    v0 = np.random.random(size=(3,)) * 0.2 # np.array([0,0,0])
-    v1 = np.random.random(size=(3,)) * 0.2 # np.array([0,0,0])
+    v0 = np.random.random(size=(3,)) * 0.1 # np.array([0,0,0])
+    v1 = np.random.random(size=(3,)) * 0.1 # np.array([0,0,0])
     # t = 0.1
 
     # p_intp = np.zeros([n,3])

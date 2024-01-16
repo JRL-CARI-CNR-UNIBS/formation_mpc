@@ -424,6 +424,10 @@ LeaderMPC::update(const rclcpp::Time & t_time, const rclcpp::Duration & /*t_peri
   }
   if(!m_interpolator.ready() || !m_interpolator.is_plan_available())
   {
+    geometry_msgs::msg::Twist empty_msg;
+    Eigen::Vector6d zero = Eigen::Vector6d::Zero();
+    empty_msg = tf2::toMsg(zero);
+    m_send_to_follower__pub->publish(empty_msg);
     return controller_interface::return_type::OK;
   }
   if(!m_interpolator.is_plan_started())
@@ -461,14 +465,14 @@ LeaderMPC::update(const rclcpp::Time & t_time, const rclcpp::Duration & /*t_peri
     m_target_dx.segment<6>(idx*6) = target_dx;
     if(idx == 0)
     {
-      // Debug
+      // DEBUG
       m_target_x = target_x;
       geometry_msgs::msg::PoseStamped msg;
       msg.header.stamp = t_time;
       msg.pose = tf2::toMsg(target_x);
       m_pose_target__pub->publish(msg);
 
-      // Debug
+      // DEBUG
       geometry_msgs::msg::TwistStamped msg2;
       msg2.header.stamp = t_time;
       msg2.twist = tf2::toMsg(target_dx);

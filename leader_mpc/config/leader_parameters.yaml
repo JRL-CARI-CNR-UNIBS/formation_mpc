@@ -30,7 +30,7 @@ leader_mpc:
     formation_dt: 0.1
     cartesian_axis: [true, true, true, true, true, true]
     clik:
-      gain: 1.5
+      gain: 1.7
       active: true
     pid:
       P: [1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0]
