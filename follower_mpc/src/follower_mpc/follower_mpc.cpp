@@ -5,7 +5,7 @@
 
 // DEBUG 00 - include per debug vari
 #include <std_msgs/msg/float64_multi_array.hpp>
-#include <tf2_ros/static_transform_broadcaster.h>
+#include <tf2_ros/transform_broadcaster.h>
 // END-DEBUG
 
 namespace formation_mpc {
@@ -200,11 +200,6 @@ FollowerMPC::on_configure(const rclcpp_lifecycle::State& /*state*/)
     RCLCPP_ERROR(this->get_node()->get_logger(), "Cannot find package %s. Exiting...", m_params.fake_base.package.c_str());
     return CallbackReturn::ERROR;
   }
-//  if(!fake_mobile_urdf.initFile(fake_base_pkg_dir + "/" + m_params.fake_base.path))
-//  {
-//    RCLCPP_ERROR(this->get_node()->get_logger(), "Cannot read fake base urdf in %s/%s", fake_base_pkg_dir.c_str(), m_params.fake_base.path.c_str());
-//    return CallbackReturn::ERROR;
-//  }
   if(!fake_mobile_urdf.initString(m_params.robot_description))
   {
     RCLCPP_ERROR(this->get_node()->get_logger(), "Cannot read fake base urdf in %s/%s", fake_base_pkg_dir.c_str(), m_params.fake_base.path.c_str());
@@ -273,7 +268,7 @@ FollowerMPC::on_configure(const rclcpp_lifecycle::State& /*state*/)
   m_sot.set_n_axis(nax);
   m_sot.set_np(m_number_of_points);
   m_sot.taskPushBack(&m_task__cartesian,      1);
-//  m_sot.taskPushBack(&m_task__joint_position, 1e-3);
+  m_sot.taskPushBack(&m_task__joint_position, 1e-3);
 
   // == Constraints ==
   m_ub_acc.init(&m_model);
@@ -305,14 +300,12 @@ FollowerMPC::on_configure(const rclcpp_lifecycle::State& /*state*/)
   m_ineq_array.addConstraint(&m_max_scaling);
   RCLCPP_DEBUG(this->get_node()->get_logger(), "MPC config: OK");
 
+  m_scaling = 1.0;
   m_q__state.resize(nax);
   m_q__start.resize(nax);
   m_q__cmd   = Eigen::VectorXd::Zero(m_nax * m_number_of_points);
   m_dq__cmd  = Eigen::VectorXd::Zero(m_nax * m_number_of_points);
   m_ddq__cmd = Eigen::VectorXd::Zero(m_nax * m_number_of_points);
-
-  m_target_dx.resize(m_number_of_points * 6);
-  m_target_dx.setZero();
 
   if(m_params.pid.P.size() != m_nax)
   {
@@ -335,9 +328,6 @@ FollowerMPC::on_configure(const rclcpp_lifecycle::State& /*state*/)
                                                                                          std::bind(&FollowerMPC::get_payload_twist__cb,
                                                                                                    this, _1));
 
-  // DEBUG 01 - pubblica posa e twist
-  m_pose_target__pub =  this->get_node()->create_publisher<geometry_msgs::msg::PoseStamped>("target_pose",10);
-  m_twist_target__pub = this->get_node()->create_publisher<geometry_msgs::msg::TwistStamped>("target_twist",10);
 
   RCLCPP_INFO(this->get_node()->get_logger(), "configure successful");
   return CallbackReturn::SUCCESS;
@@ -375,6 +365,7 @@ CallbackReturn FollowerMPC::on_activate  (const rclcpp_lifecycle::State& /*state
   {
     m_q__state(idx) = m_joint_position_state_interface.at(idx).get().get_value();
   }
+  m_q__start = m_q__state;
 
   Eigen::VectorXd initial_state( 2 * m_nax);
   initial_state.head(m_nax) = m_q__state;
@@ -390,17 +381,11 @@ CallbackReturn FollowerMPC::on_activate  (const rclcpp_lifecycle::State& /*state
   {
     RCLCPP_ERROR_STREAM(this->get_node()->get_logger(),
                         "Error while retriving Transform from [" << m_payload_frame << "] to [" << m_tool_frame << "]: "
-                                                                 << ex.what() << " -- Try again...");
-    try {
-      tf_msg = m_tf_buffer_ptr->lookupTransform(m_payload_frame, m_tool_frame, tf2::TimePointZero, 1s);
-    }  catch (const tf2::TransformException& ex) {
-      RCLCPP_ERROR_STREAM(this->get_node()->get_logger(),
-                          "Error while retriving Transform from [" << m_payload_frame << "] to [" << m_tool_frame << "]: "
-                                                                   << ex.what() << " -- Exiting");
-      return CallbackReturn::FAILURE;
-    }
+                                                                 << ex.what());
+    return CallbackReturn::FAILURE;
   }
   m_T_from_payload_to_tool = tf2::transformToEigen(tf_msg);
+  RCLCPP_DEBUG(this->get_node()->get_logger(), "distance: %f", m_T_from_payload_to_tool.translation().norm());
 
   m_twist_tool_in_map = Eigen::Vector6d::Zero();
   m_old_twist         = Eigen::Vector6d::Zero();
@@ -425,41 +410,31 @@ FollowerMPC::update(const rclcpp::Time & t_time, const rclcpp::Duration & /*t_pe
   {
     m_q__state(idx) = m_joint_position_state_interface.at(idx).get().get_value();
   }
+
   Eigen::VectorXd target_dx = Eigen::VectorXd::Zero(m_number_of_points * 6);
-  for(size_t idx = 0; idx < m_number_of_points; ++idx)
-  {
-    // FIXME: gli intervalli di tempo non sono costanti
-    Eigen::Vector6d vec = m_old_twist + (idx+1)*(m_twist_tool_in_map-m_old_twist)/(double)m_number_of_points;
-    target_dx.segment<6>(idx*6) = vec;
-  }
-//  target_dx.setConstant(0.001);
   Eigen::Affine3d actual_pose = m_rdyn_full_chain->getTransformation(m_q__state); // map -> tool
-  Eigen::Affine3d target_pose;
+  Eigen::Affine3d target_pose = actual_pose;
+
   if(m_twist_tool_in_map.norm() > 1e-6)
   {
+    for(size_t idx = 0; idx < m_number_of_points; ++idx)
+    {
+      // FIXME: gli intervalli di tempo non sono costanti
+       target_dx.segment<6>(idx*6) = m_old_twist + (idx+1)*(m_twist_tool_in_map-m_old_twist)/(double)m_number_of_points;
+//      target_dx.segment<6>(idx*6) = m_twist_tool_in_map;
+    }
     target_pose = rdyn::spatialIntegration(actual_pose, m_twist_tool_in_map, m_dt);
+//    target_pose = rdyn::spatialIntegration(actual_pose, target_dx.head<6>(), m_dt);
   }
-  else
-  {
-    target_pose = actual_pose;
-  }
-  {// DEBUG 03a - broadcast target_pose
-    tf2_ros::StaticTransformBroadcaster tf_bcast(*(this->get_node()));
-    geometry_msgs::msg::TransformStamped msg;
-    msg = tf2::eigenToTransform(target_pose);
-    msg.header.frame_id = m_params.map_frame;
-    msg.header.stamp = rclcpp::Time(0,0);
-    msg.child_frame_id = "std::to_string(get_node()->get_clock()->now().nanoseconds());";
-    tf_bcast.sendTransform(msg);
-  }// DEBUG-END
 
   // == Cartesian
   m_task__cartesian.setTargetTrajectory(target_dx, target_pose);
-  m_task__cartesian.setTargetScaling(1.0);
+  m_scaling = 1.0;
+  m_task__cartesian.setTargetScaling(m_scaling);
   // == Joints
-//  Eigen::VectorXd np_q = Eigen::VectorXd(m_nax*m_number_of_points);
-//  for(unsigned int idx = 0; idx < m_number_of_points; ++idx){np_q.segment(idx*m_nax, m_nax) = m_q__start;}
-//  m_task__joint_position.setTargetPosition(np_q);
+  Eigen::VectorXd np_q = Eigen::VectorXd(m_nax*m_number_of_points);
+  for(unsigned int idx = 0; idx < m_number_of_points; ++idx){np_q.segment(idx*m_nax, m_nax) = m_q__start;}
+  m_task__joint_position.setTargetPosition(np_q);
 
   // Update task
   for(size_t idx = 0; idx < m_sot.stackSize(); ++idx)
@@ -473,20 +448,9 @@ FollowerMPC::update(const rclcpp::Time & t_time, const rclcpp::Duration & /*t_pe
   }
   Eigen::MatrixXd CE;
   Eigen::VectorXd ce0;
-//  RCLCPP_DEBUG(this->get_node()->get_logger(), "Pre-HQP");
   taskQP::math::computeHQPSolution(m_sot, CE, ce0, m_ineq_array.matrix(), m_ineq_array.vector(), m_solutions);
-//  RCLCPP_DEBUG_STREAM(this->get_node()->get_logger(), "sol: " << m_solutions.transpose());
-//  RCLCPP_DEBUG(this->get_node()->get_logger(), "Post-HQP");
 
-  { // DEBUG 02 - pubblica soluzione
-    auto pub_solution = this->get_node()->create_publisher<std_msgs::msg::Float64MultiArray>("solutions",10);
-    pub_solution->on_activate();
-    std_msgs::msg::Float64MultiArray msg;
-    msg.data = std::vector<double>(m_solutions.data(), m_solutions.data()+m_solutions.size());
-    pub_solution->publish(msg);
-  } // END
-
-  assert(!std::isnan(m_solutions(0)));
+  assert(!std::isnan(m_solutions.norm()));
   for(auto& sol : m_solutions.head(m_nax))
   {
     sol = std::fabs(sol) > 1e-6? sol : 0.0;
@@ -497,8 +461,6 @@ FollowerMPC::update(const rclcpp::Time & t_time, const rclcpp::Duration & /*t_pe
   m_ddq__cmd = m_solutions.head(m_nax);
   m_dq__cmd  = m_model.getState().tail(m_nax);
   m_q__cmd   = m_model.getState().head(m_nax);
-
-  RCLCPP_DEBUG_STREAM(get_node()->get_logger(), "q__cmd --> " << m_q__cmd.transpose());
 
   m_scaling = m_solutions(m_nax * m_number_of_points);
 

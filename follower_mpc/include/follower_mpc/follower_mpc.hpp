@@ -139,9 +139,6 @@ protected:
 
   std::vector<control_toolbox::Pid> m_pid__vector;
 
-  Eigen::VectorXd m_target_dx;
-  Eigen::Affine3d m_target_x;
-
   Eigen::Vector6d m_twist_tool_in_map;
   Eigen::Vector6d m_old_twist;
 
@@ -150,10 +147,6 @@ protected:
   rclcpp::Subscription<sensor_msgs::msg::JointState>::SharedPtr   m_joint_state__sub;
   rclcpp::Subscription<geometry_msgs::msg::Twist>::SharedPtr      m_leader_twist__sub;
   void get_payload_twist__cb(const geometry_msgs::msg::Twist& msg);
-
-  // Debug publishers
-  rclcpp::Publisher<geometry_msgs::msg::PoseStamped>::SharedPtr   m_pose_target__pub;
-  rclcpp::Publisher<geometry_msgs::msg::TwistStamped>::SharedPtr   m_twist_target__pub;
 
   rclcpp::TimerBase::SharedPtr m_timer;
 
